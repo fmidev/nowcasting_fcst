@@ -1,8 +1,4 @@
 # -*- coding: utf-8 -*-
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import cm
 import interpolate_fcst
 import numpy as np
 import argparse
@@ -10,7 +6,6 @@ import datetime
 import ConfigParser
 import netCDF4
 import sys
-import pandas as pd
 import os
 import time
 from scipy.misc import imresize

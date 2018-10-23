@@ -223,9 +223,9 @@ def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictabili
 
 
 
-def farneback_params_config():
+def farneback_params_config(config_file_name):
     config = ConfigParser.RawConfigParser()
-    config.read("compute_advinterp.cfg")
+    config.read(config_file_name)
     farneback_pyr_scale  = config.getfloat("optflow",    "pyr_scale")
     farneback_levels     = config.getint("optflow",      "levels")
     farneback_winsize    = config.getint("optflow",      "winsize")
@@ -243,7 +243,7 @@ def farneback_params_config():
 def main():
     
     # #Read parameters from config file for interpolation (or optical flow algorithm, find out this later!). The function for reading the parameters is defined above.
-    farneback_params=farneback_params_config()
+    farneback_params=farneback_params_config(options.farneback_params)
 
     # In the "verification mode", the idea is to load in the "observational" and "forecast" datasets as numpy arrays. Both of these numpy arrays ("image_array") contain ALL the timesteps contained also in the files themselves. In addition, the returned variables "timestamp" and "mask_nodata" contain the values for all the timesteps.
     # In "forecast mode", only one model timestep is given as an argument
@@ -358,5 +358,9 @@ if __name__ == '__main__':
                         type=float,
                         default=45,
                         help='Maximum DBZH for optical flow computations. Values above DBZH_max are clamped.')
+    parser.add_argument('--farneback_params',
+                        default='compute_advinterp.cfg',
+                        help='location of farneback params configuration file')
+
     options = parser.parse_args()
     main()

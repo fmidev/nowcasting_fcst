@@ -8,6 +8,7 @@ import netCDF4
 import sys
 import os
 import time
+from eccodes import *
 from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
 
@@ -81,6 +82,44 @@ def ncdump(nc_fid, verb=True):
 
 
 
+def read(image_file):
+    if image_file.endswith(".nc"):
+        return read_nc(image_file)
+    elif image_file.endswith(".grib2"):
+        return read_grib(image_file)
+    elif image_file.endswith(".hdf"):
+        return read_HDF5(image_file)
+    else:
+        print "unsupported file type for file: %s" % (image_file)
+
+
+
+
+def read_grib(image_grib_file):
+
+    # check comments from read_nc()
+    dtime = []
+    tempsl = []
+
+    with GribFile(image_grib_file) as grib:
+        for msg in grib:
+            #print msg.size()
+
+            ni = msg["Ni"]
+            nj = msg["Nj"]
+
+            forecast_time = datetime.datetime.strptime("%s%s" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
+            dtime.append(forecast_time)
+            tempsl.append(np.asarray(msg["values"]).reshape(ni, nj))
+
+    temps = np.asarray(tempsl)
+    nodata = 9999
+
+    mask_nodata = np.ma.masked_where(temps == nodata,temps)
+    temps_min= temps[np.where(~np.ma.getmask(mask_nodata))].min()
+    temps_max= temps[np.where(~np.ma.getmask(mask_nodata))].max()
+
+    return temps, temps_min, temps_max, dtime, mask_nodata, nodata
 
 
 
@@ -102,6 +141,45 @@ def read_nc(image_nc_file):
     # The script returns four variables: the actual data, timestamps, nodata_mask and the actual nodata value
     return temps, temps_min, temps_max, dtime, mask_nodata, nodata
 
+
+
+
+def write(interpolated_data,image_file,write_file,variable,predictability):
+
+    if write_file.endswith(".nc"):
+        write_nc(interpolated_data,image_file,write_file,variable,predictability)
+    elif write_file.endswith(".grib2"):
+        write_grib(interpolated_data,image_file,write_file,variable,predictability)
+    else:
+        print "unsupported file type for file: %s" % (image_file)
+        return
+
+    print "wrote file '%s'" % write_file
+
+
+
+
+def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predictability):
+
+    # (Almost) all the metadata is copied from modeldata.grib2
+
+    try:
+        os.remove(write_grib_file)
+    except OSError,e:
+        pass
+
+    with GribFile(image_grib_file) as grib:
+        for msg in grib:
+            msg["generatingProcessIdentifier"] = 240
+            msg["centre"] = 86
+
+            for i in range(interpolated_data.shape[0]):
+                msg["forecastTime"] = i
+                msg["values"] = interpolated_data[i].flatten()
+
+                with open(write_grib_file, "a") as out:
+                    msg.write(out)
+            break # we use only the first grib message as a template
 
 
 
@@ -174,10 +252,10 @@ def main():
     if options.parameter == 'Precipitation1h_TULISET': # Not needed atm
         image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1 = read_HDF5("/fmi/data/nowcasting/testdata_radar/opera_rate/T_PAAH21_C_EUOC_20180613120000.hdf")
     else:
-        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1 = read_nc(options.obsdata)
+        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1 = read(options.obsdata)
         quantity1 = options.parameter
     # The second field is always the edited forecast field
-    image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2 = read_nc(options.modeldata)
+    image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2 = read(options.modeldata)
     quantity2 = options.parameter
 
     # In verification mode timestamps must be the same, otherwise exiting!
@@ -226,8 +304,7 @@ def main():
     interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
 
     # Save interpolated field to a new nc file
-    write_nc(interpolated_data=interpolated_advection,image_nc_file=options.modeldata,write_nc_file=options.interpolated_data,variable=options.parameter,predictability=options.predictability)
-
+    write(interpolated_data=interpolated_advection,image_file=options.modeldata,write_file=options.interpolated_data,variable=options.parameter,predictability=options.predictability)
 
     print(dir())
     

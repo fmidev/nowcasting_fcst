@@ -1,4 +1,4 @@
-opencv-python==3.1.0.3
-scipy==0.19.1
-netCDF4==1.4.0
-Pillow==3.4.2
+opencv-python>=3.1.0.3
+scipy>=0.19.1
+netCDF4>=1.4.0
+Pillow>=3.4.2

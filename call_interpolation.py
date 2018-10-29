@@ -172,6 +172,7 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
         for msg in grib:
             msg["generatingProcessIdentifier"] = 202
             msg["centre"] = 86
+            msg["bitmapPresent"] = True
 
             for i in range(interpolated_data.shape[0]):
                 msg["forecastTime"] = i

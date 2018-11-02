@@ -26,7 +26,7 @@
 ################## MAIN ##################
 
 ####### General parameters
-PYTHON=${PYTHON:-'/fmi/dev/python_virtualenvs/venv/bin/python'} # This environment was used at dev.elmo (run using "source /fmi/dev/python_virtualenvs/venv/bin/activate")
+PYTHON=${PYTHON:-'/home/users/ylhaisi/python-virtualenvs/nowcasting_fcst/bin/python'}          # /fmi/dev/python_virtualenvs/venv/bin/python'} # This environment was used at dev.elmo (run using "source /fmi/dev/python_virtualenvs/venv/bin/activate")
 DATAPATH=${DATAPATH:-"testdata/"}
 OBSDATA=${OBSDATA:-"obsdata.nc"}
 MODELDATA=${MODELDATA:-"modeldata.nc"}

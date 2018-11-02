@@ -11,6 +11,7 @@ import time
 from eccodes import *
 from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
+import matplotlib.pyplot as plt
 
 
 # FUNCIONS USED
@@ -110,7 +111,7 @@ def read_grib(image_grib_file):
 
             forecast_time = datetime.datetime.strptime("%s%s" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
             dtime.append(forecast_time)
-            tempsl.append(np.asarray(msg["values"]).reshape(ni, nj))
+            tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
 
     temps = np.asarray(tempsl)
     nodata = 9999
@@ -286,16 +287,16 @@ def main():
 
     #Resize observation field to same resolution with model field and slightly blur to make the two fields look more similar for OpenCV.
     # NOW THE PARAMETER IS A CONSTANT AD-HOC VALUE!!!
-    reshaped_size = list(image_array2.shape)
-    if (options.mode == "fcst"):
-        reshaped_size[0] = 1
-    image_array1_reshaped=np.zeros(reshaped_size)
-    for n in range(0,image_array1.shape[0]):
-        #Resize                       
-        image_array1_reshaped[n]=imresize(image_array1[n], image_array2[0].shape, interp='bilinear', mode='F')
-        #Blur
-        image_array1_reshaped[n]=gaussian_filter(image_array1_reshaped[n], options.gaussian_filter_sigma)
-    image_array1=image_array1_reshaped
+#     reshaped_size = list(image_array2.shape)
+#     if (options.mode == "fcst"):
+#         reshaped_size[0] = 1
+#     image_array1_reshaped=np.zeros(reshaped_size)
+#     for n in range(0,image_array1.shape[0]):
+#         #Resize                       
+#         image_array1_reshaped[n]=imresize(image_array1[n], image_array2[0].shape, interp='bilinear', mode='F')
+#         #Blur
+#         image_array1_reshaped[n]=gaussian_filter(image_array1_reshaped[n], options.gaussian_filter_sigma)
+#     image_array1=image_array1_reshaped
 
     # CALCULATING INTERPOLATED IMAGES FOR DIFFERENT PRODUCERS AND CALCULATING VERIF METRICS
                 
@@ -317,17 +318,17 @@ if __name__ == '__main__':
     #Parse commandline arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--obsdata',
-                        default="testdata/obsdata.nc",
+                        default="testdata/obsdata.grib2",
                         help='Obs data, representing the first time step used in image morphing.')
     parser.add_argument('--modeldata',
-                        default="testdata/modeldata.nc",
+                        default="testdata/modeldata.grib2",
                         help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
     parser.add_argument('--seconds_between_steps',
                         type=int,
                         default=3600,
                         help='Seconds between interpolated steps.')
     parser.add_argument('--interpolated_data',
-                        default='outdata/nowcast_interpolated.nc',
+                        default='outdata/interp.grib2',
                         help='Output file name for nowcast data.')
     parser.add_argument('--predictability',
                         type=int,

@@ -169,32 +169,38 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     except OSError,e:
         pass
 
-    with GribFile(image_grib_file) as grib:
-        for msg in grib:
-            msg["generatingProcessIdentifier"] = 202
-            msg["centre"] = 86
-            msg["bitmapPresent"] = True
+    # Change data type of numpy array
+    interpolated_data = np.round(interpolated_data,2)
+    interpolated_data = interpolated_data.astype('float64')             
 
-            for i in range(interpolated_data.shape[0]):
-                msg["forecastTime"] = i
-                msg["values"] = interpolated_data[i].flatten()
-
-                with open(write_grib_file, "a") as out:
-                    msg.write(out)
-            break # we use only the first grib message as a template
-
-    ## This edits each grib message individually (and assumes that forecastTime is an integer value)
     #with GribFile(image_grib_file) as grib:
     #    for msg in grib:
     #        msg["generatingProcessIdentifier"] = 202
     #        msg["centre"] = 86
     #        msg["bitmapPresent"] = True
-    #        i = msg["forecastTime"]
-    #        if (i == interpolated_data.shape[0]):
-    #            break
-    #        msg["values"] = interpolated_data[i,:,:].flatten()
-    #        with open(write_grib_file, "a") as out:
-    #            msg.write(out)
+    #
+    #        for i in range(interpolated_data.shape[0]):
+    #            msg["forecastTime"] = i
+    #            msg["values"] = interpolated_data[i].flatten()
+    #
+    #            with open(write_grib_file, "w") as out:
+    #                msg.write(out)
+    #        break # we use only the first grib message as a template
+
+    # This edits each grib message individually (and assumes that forecastTime is an integer value)
+    with GribFile(image_grib_file) as grib:
+        for msg in grib:
+            msg["generatingProcessIdentifier"] = 202
+            msg["centre"] = 86
+            msg["bitmapPresent"] = True
+            i = msg["forecastTime"]
+            if (i == interpolated_data.shape[0]):
+                break
+            msg["values"] = interpolated_data[i,:,:].flatten()
+            print("{} {}: {}".format("histogram of interpolated_data timestep ",i,np.histogram(interpolated_data[i,:,:].flatten(),bins=20,range=(240,300))))
+            print("{} {}: {}".format("histogram of msg[values] timestep ",i,np.histogram(msg["values"],bins=20,range=(240,300))))
+            with open(write_grib_file, "a") as out:
+                msg.write(out)
 
 
 
@@ -331,10 +337,10 @@ if __name__ == '__main__':
     #Parse commandline arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--obsdata',
-                        default="testdata/obsdata_nomissing.grib2",
+                        default="testdata/testdata_nwc_230700/obs_2t.grib2",
                         help='Obs data, representing the first time step used in image morphing.')
     parser.add_argument('--modeldata',
-                        default="testdata/modeldata_nomissing.grib2",
+                        default="testdata/testdata_nwc_230700/fcst_2t.grib2",
                         help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
     parser.add_argument('--seconds_between_steps',
                         type=int,

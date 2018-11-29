@@ -197,11 +197,7 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
             if (i == interpolated_data.shape[0]):
                 break
             msg["values"] = interpolated_data[i,:,:].flatten()
-<<<<<<< HEAD
             print("{} {}: {}".format("histogram of interpolated_data timestep ",i,np.histogram(interpolated_data[i,:,:].flatten(),bins=20,range=(240,300))))
-=======
-            print("{} {}: {}".format("histogram of interpolated_advection timestep ",i,np.histogram(interpolated_advection[i,:,:].flatten(),bins=20,range=(240,300))))
->>>>>>> 13176536442301ec393070aa9256bc90cd634b04
             print("{} {}: {}".format("histogram of msg[values] timestep ",i,np.histogram(msg["values"],bins=20,range=(240,300))))
             with open(write_grib_file, "a") as out:
                 msg.write(out)

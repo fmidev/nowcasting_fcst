@@ -11,7 +11,6 @@ import time
 from eccodes import *
 from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
-import matplotlib.pyplot as plt
 
 
 # FUNCIONS USED

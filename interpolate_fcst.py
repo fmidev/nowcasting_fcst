@@ -194,6 +194,11 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   
   # To analysis and interpolated images, the remaining model fields are added. If the argument "seconds_between_steps" is in even hours the result list will have the same length as input argument "modelfields"
   R_interp[predictability:,:,:] = modelfields[predictability:,:,:]
+  
+  # Masking in the previous step does not take into account that missing values can actually spread and dilute to actual field. Therefore appylying a simple check to remove spurious values from fields, based on absolute maximum/minimum values in either field.
+  R_interp[R_interp>(R_max*1.02)] = missingval
+  R_interp[R_interp<(R_min*0.98)] = missingval
+
   return R_interp
 
 # This function smooths out the image and turns the data values to ubyte type for the motion vector calculation

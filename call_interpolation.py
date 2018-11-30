@@ -11,7 +11,7 @@ import time
 from eccodes import *
 from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 
 
 # FUNCIONS USED
@@ -170,8 +170,8 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
         pass
 
     # Change data type of numpy array
-    interpolated_data = np.round(interpolated_data,2)
-    interpolated_data = interpolated_data.astype('float64')             
+    # interpolated_data = np.round(interpolated_data,2)
+    # interpolated_data = interpolated_data.astype('float64')             
 
     #with GribFile(image_grib_file) as grib:
     #    for msg in grib:
@@ -183,7 +183,7 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     #            msg["forecastTime"] = i
     #            msg["values"] = interpolated_data[i].flatten()
     #
-    #            with open(write_grib_file, "w") as out:
+    #            with open(write_grib_file, "a") as out:
     #                msg.write(out)
     #        break # we use only the first grib message as a template
 
@@ -197,8 +197,8 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
             if (i == interpolated_data.shape[0]):
                 break
             msg["values"] = interpolated_data[i,:,:].flatten()
-            print("{} {}: {}".format("histogram of interpolated_data timestep ",i,np.histogram(interpolated_data[i,:,:].flatten(),bins=20,range=(240,300))))
-            print("{} {}: {}".format("histogram of msg[values] timestep ",i,np.histogram(msg["values"],bins=20,range=(240,300))))
+            # print("{} {}: {}".format("histogram of interpolated_data timestep ",i,np.histogram(interpolated_data[i,:,:].flatten(),bins=20,range=(240,300))))
+            # print("{} {}: {}".format("histogram of msg[values] timestep ",i,np.histogram(msg["values"],bins=20,range=(240,300))))
             with open(write_grib_file, "a") as out:
                 msg.write(out)
 

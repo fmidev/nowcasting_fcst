@@ -108,7 +108,7 @@ def read_grib(image_grib_file):
             ni = msg["Ni"]
             nj = msg["Nj"]
 
-            forecast_time = datetime.datetime.strptime("%s%s" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
+            forecast_time = datetime.datetime.strptime("%s%02d" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
             dtime.append(forecast_time)
             tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
 

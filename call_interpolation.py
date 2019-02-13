@@ -336,10 +336,10 @@ if __name__ == '__main__':
     #Parse commandline arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--obsdata',
-                        default="testdata/testdata_nwc_230700/obs_2t.grib2",
+                        default="testdata/testdata_nwc_2019020406UTC/obs_2t.grib2",
                         help='Obs data, representing the first time step used in image morphing.')
     parser.add_argument('--modeldata',
-                        default="testdata/testdata_nwc_230700/fcst_2t.grib2",
+                        default="testdata/testdata_nwc_2019020406UTC/fcst_2t.grib2",
                         help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
     parser.add_argument('--seconds_between_steps',
                         type=int,

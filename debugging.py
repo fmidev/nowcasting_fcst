@@ -11,8 +11,9 @@ from eccodes import *
 from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
 
+import PyQt4
 import matplotlib
-matplotlib.use('Agg')
+matplotlib.use('qt5Agg')
 import matplotlib.pyplot as plt
 from matplotlib.pyplot import cm
 
@@ -21,17 +22,17 @@ from matplotlib.pyplot import cm
 #Parse commandline arguments
 parser = argparse.ArgumentParser()
 parser.add_argument('--obsdata',
-                    default="testdata/testdata_nwc_2019020406UTC/obs_2t.grib2",
+                    default="testdata/2019020406/obs_2r.grib2",
                     help='Obs data, representing the first time step used in image morphing.')
 parser.add_argument('--modeldata',
-                    default="testdata/testdata_nwc_2019020406UTC/fcst_2t.grib2",
+                    default="testdata/2019020406/fcst_2r.grib2",
                     help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
 parser.add_argument('--seconds_between_steps',
                     type=int,
                     default=3600,
                     help='Seconds between interpolated steps.')
 parser.add_argument('--interpolated_data',
-                    default='testdata/testdata_nwc_2019020406UTC/output/interpolated_uusi2_2t.grib2',
+                    default='testdata/2019020406/output/interpolated_uusi2_2r.grib2',
                     help='Output file name for nowcast data.')
 parser.add_argument('--predictability',
                     type=int,
@@ -341,12 +342,14 @@ def farneback_params_config(config_file_name):
 
 
 
-def plot_imshow(temps,vmin,vmax,outfile,cmap):
+def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
     plt.imshow(temps,cmap=cmap,vmin=vmin,vmax=vmax,origin="lower")
-    plt.axis('off')
+    #plt.axis('off')
+    plt.colorbar()
+    plt.title(title)
     plt.tight_layout(pad=0.)
-    plt.xticks([])
-    plt.yticks([])
+    # plt.xticks([])
+    # plt.yticks([])
     plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
     plt.close()
 
@@ -450,31 +453,100 @@ fb_params = (farneback_params[0],farneback_params[1],farneback_params[2],farneba
 # Interpolated data
 interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
 
+interpolated_advection_inprogram = interpolated_advection
 
+interpolated_advection, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1 = read(options.interpolated_data)
 
 
 # NOW PLOT DIAGNOSTICS FROM THE FIELDS
-# TIME SERIES FROM THE INDIVIDUAL GRID POINTS
 
-fc_lengths=np.arange(0,6+1)
-y_ax_title=options.parameter + " (" + units + ")"
-title = "RMSE, Varying predictability"
-verif_scores= verif_interpolated_advection[:,1,1,3,:,1]
-outfile = outdir_elmo + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_" + timestamp1[timestamp1.shape[0]-1].strftime("%Y%m%d%H%M%S") + "_rmse_adv_predictability_" + options.parameter + ".png"
-plot_verif_scores(fc_lengths,verif_scores,predictabilitys,outfile,title,y_ax_title)
-
-
-for n in range(0, interpolated_advection.shape[0]):
-    plt.plot(fc_lengths, np.mean(interpolated_advection,axis=(1,2)), linewidth=2.0, label=str(labels[n]))
-plt.legend(bbox_to_anchor=(0.21, 1))
+# TIME SERIES FROM THE FIELD MEAN
+fc_lengths=np.arange(0,6)
+outdir = "figures/"
+outfile = outdir + "Field_mean_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + ".png"
+plt.plot(fc_lengths, np.mean(interpolated_advection,axis=(1,2)), linewidth=2.0, label="temperature")
+title = "Field mean, " + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S")
 plt.title(title)
-plt.xlabel('Forecast length (h)')
-plt.ylabel(y_ax_title)
-plt.show()
+plt.tight_layout(pad=0.)
+# plt.xticks([])
+# plt.yticks([])
+plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
+plt.close()
+
+# JUMPINESS CHECKS
+# PREVAILING ASSUMPTION: THE CHANGE IN INDIVIDUAL GRIDPOINTS IS VERY LINEAR
+
+# RESULT ARRAYS
+linear_change_boolean = np.ones(interpolated_advection.shape)
+gp_abs_difference = np.ones(interpolated_advection.shape)
+gp_mean_difference = np.ones(interpolated_advection.shape)
+ratio_meandiff_absdiff = np.ones(interpolated_advection.shape)
+
+# 0) PLOT DMO FIELDS
+for n in (range(0, 6)):
+    outdir = "figures/fields/"
+    # PLOTTING AND SAVING TO FILE
+    title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + "fc=+" + str(n) + "h"
+    outfile = outdir + "field" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title)
+
+# 1a) TRUE IS ASSIGNED TO THOSE TIME+LOCATION POINTS THAT HAVE PREVIOUS TIMESTEP VALUE LESS (MORE) AND NEXT TIMESTEP VALUE MORE (LESS) THAN THE CORRESPONDING VALUE. SO NO CHANGE IN THE SIGN OF THE DERIVATIVE.
+for n in (range(1, 5)):
+    outdir = "figures/linear_change/"
+    gp_increased = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] > 0) & (interpolated_advection[(n+1),:,:] - interpolated_advection[n,:,:] > 0)
+    gp_reduced = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] < 0) & (interpolated_advection[(n+1),:,:] - interpolated_advection[n,:,:] < 0)
+    linear_change_boolean[n,:,:] = gp_reduced + gp_increased
+    gp_outside_minmax_range = np.max(np.maximum(np.maximum(0,(interpolated_advection[n,:,:]-np.maximum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+1),:,:]))),abs(np.minimum(0,(interpolated_advection[n,:,:]-np.minimum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+1),:,:]))))))
+    # PLOTTING AND SAVING TO FILE
+    title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n) + "h, " + str(round(np.mean(linear_change_boolean[n,:,:])*100,2)) + "% gridpoints is \n inside range " + str(n-1) + "h..." + str(n+1) + "h, outside range field max value " + str(round(gp_outside_minmax_range,2))
+    outfile = outdir + "linear_change_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(linear_change_boolean[n,:,:],0,1,outfile,"jet",title)
+
+# 1b) TRUE IS ASSIGNED TO THOSE TIME+LOCATION POINTS THAT HAVE PREVIOUS TIMESTEP VALUE LESS (MORE) AND NEXT+1 TIMESTEP VALUE MORE (LESS) THAN THE CORRESPONDING VALUE. SO NO CHANGE IN THE SIGN OF THE DERIVATIVE.
+for n in (range(1, 4)):
+    outdir = "figures/linear_change3h/"
+    gp_increased = ((interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:]) > 0) & ((interpolated_advection[(n+2),:,:] - interpolated_advection[n,:,:]) > 0)
+    gp_reduced = ((interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:]) < 0) & ((interpolated_advection[(n+2),:,:] - interpolated_advection[n,:,:]) < 0)
+    linear_change_boolean[n,:,:] = gp_reduced + gp_increased
+    gp_outside_minmax_range = np.max(np.maximum(np.maximum(0,(interpolated_advection[n,:,:]-np.maximum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+2),:,:]))),abs(np.minimum(0,(interpolated_advection[n,:,:]-np.minimum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+2),:,:]))))))
+    # PLOTTING AND SAVING TO FILE
+    title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n) + "h, " + str(round(np.mean(linear_change_boolean[n,:,:])*100,2)) + "% gridpoints is \n inside range " + str(n-1) + "h..." + str(n+2) + "h, outside range field max value " + str(round(gp_outside_minmax_range,2))
+    outfile = outdir + "linear_change_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(linear_change_boolean[n,:,:],0,1,outfile,"jet",title)
+
+# 1c) TRUE IS ASSIGNED TO THOSE TIME+LOCATION POINTS THAT HAVE PREVIOUS TIMESTEP VALUE LESS (MORE) AND NEXT+2 TIMESTEP VALUE MORE (LESS) THAN THE CORRESPONDING VALUE. SO NO CHANGE IN THE SIGN OF THE DERIVATIVE.
+for n in (range(1, 3)):
+    outdir = "figures/linear_change4h/"
+    gp_increased = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] > 0) & (interpolated_advection[(n+3),:,:] - interpolated_advection[n,:,:] > 0)
+    gp_reduced = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] < 0) & (interpolated_advection[(n+3),:,:] - interpolated_advection[n,:,:] < 0)
+    linear_change_boolean[n,:,:] = gp_reduced + gp_increased
+    gp_outside_minmax_range = np.max(np.maximum(np.maximum(0,(interpolated_advection[n,:,:]-np.maximum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+3),:,:]))),abs(np.minimum(0,(interpolated_advection[n,:,:]-np.minimum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+3),:,:]))))))
+    # PLOTTING AND SAVING TO FILE
+    title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n) + "h, " + str(round(np.mean(linear_change_boolean[n,:,:])*100,2)) + "% gridpoints is \n inside range " + str(n-1) + "h..." + str(n+3) + "h, outside range field max value " + str(round(gp_outside_minmax_range,2))
+    outfile = outdir + "linear_change_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(linear_change_boolean[n,:,:],0,1,outfile,"jet",title)
 
 
-
-
+# ANALYSING "JUMPINESS"
+for n in (range(1, 5)):
+    # 2) DIFFERENCE OF TIMESTEPS (n-1) AND (n+1)
+    gp_abs_difference[n,:,:] = abs(interpolated_advection[(n+1),:,:] - interpolated_advection[(n-1),:,:])
+    outdir = "figures/jumpiness_absdiff/"
+    title = options.parameter + " absdiff of " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n-1) + "h" + str(n+1) + "h \n field max value " + str(round(np.max(gp_abs_difference[n,:,:]),2))
+    outfile = outdir + "jumpiness_absdiff_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(gp_abs_difference[n,:,:],-5,5,outfile,"seismic",title)
+    # 3) DIFFERENCE FROM THE MEAN OF (n-1) AND (n+1)
+    gp_mean_difference[n,:,:] = abs(interpolated_advection[n,:,:] - ((interpolated_advection[(n+1),:,:] + interpolated_advection[(n-1),:,:])/2))
+    outdir = "figures/jumpiness_meandiff/"
+    title = options.parameter + " diff from " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n-1) + "h" + str(n+1) + "h_mean \n field max value " + str(round(np.max(gp_mean_difference[n,:,:]),2))
+    outfile = outdir + "jumpiness_meandiff_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(gp_mean_difference[n,:,:],-0.2,0.2,outfile,"seismic",title)
+    # 4) MEAN DIFF DIVIDED BY ABSDIFF
+    ratio_meandiff_absdiff = gp_mean_difference / gp_abs_difference
+    outdir = "figures/jumpiness_ratio/"
+    title = options.parameter + " meandiff / absdiff ratio % " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n-1) + "h" + str(n+1) + "h \n field max value " + str(round(np.max(ratio_meandiff_absdiff[n,:,:]),2))
+    outfile = outdir + "jumpiness_ratio_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+    plot_imshow(ratio_meandiff_absdiff[n,:,:],0,2,outfile,"seismic",title)
 
 # Save interpolated field to a new nc file
 write(interpolated_data=interpolated_advection,image_file=options.modeldata,write_file=options.interpolated_data,variable=options.parameter,predictability=options.predictability)

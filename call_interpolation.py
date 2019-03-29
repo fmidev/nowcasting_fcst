@@ -423,7 +423,7 @@ if __name__ == '__main__':
                         default='4',
                         help='Predictability in hours. Between the analysis and forecast of this length, forecasts need to be interpolated')
     parser.add_argument('--parameter',
-                        default='precipitation_bg_1h',
+                        default='temperature',
                         help='Variable which is handled.')
     parser.add_argument('--mode',
                         default='fcst',

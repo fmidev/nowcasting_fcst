@@ -11,10 +11,11 @@
 # $PREDICTABILITY is taken as a constant value but in practice should be given as a forecast/flow-dependent parameter to this program, calculated in a separate module (or inside this program).
 
 # EXAMPLE RUNS
-# python call_interpolation.py --obsdata testdata/obsdata_nomissing.grib2 --modeldata testdata/modeldata_nomissing.grib2 --interpolated_data outdata/interp.grib2
+# python2 call_interpolation.py --obsdata testdata/obsdata_nomissing.grib2 --modeldata testdata/modeldata_nomissing.grib2 --interpolated_data outdata/interp.grib2
 wrote file 'outdata/interp.grib2'
-# python call_interpolation.py --obsdata testdata/testdata_nwc_2019020406UTC/obs_2t.grib2 --modeldata testdata/testdata_nwc_2019020406UTC/fcst_2t.grib2 --interpolated_data testdata/testdata_nwc_2019020406UTC/output/interpolated_uusi_2t.grib2
-
+# python2 call_interpolation.py --obsdata testdata/2019020409/obs_2t.grib2 --modeldata testdata/2019020409/fcst_2t.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi_2t.grib2 --parameter Temperature
+# python2 call_interpolation.py --obsdata testdata/2019020409/obs_msl.grib2 --modeldata testdata/2019020409/fcst_msl.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi_msl.grib2 --parameter msl
+# python2 call_interpolation.py --obsdata testdata/2019032708/obs_tprate.grib2 --modeldata testdata/2019032708/fcst_tprate.grib2 --bgdata testdata/2019032708/mnwc_tprate.grib2 --interpolated_data testdata/2019032708/output/interpolated_tprate.grib2 --parameter precipitation_bg_1h
 
 
 # The testdata files were retrieved from Smartmet Server using commands

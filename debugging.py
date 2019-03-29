@@ -412,11 +412,14 @@ def main():
             weights_obs = np.where(weights_obs>1,1,weights_obs)
             weights_obs = np.where(np.logical_not(mask_nodata1_p),weights_obs,0)
             weights_bg = 1 - weights_obs
+            # outdir = "figures/fields/"
+            # title = "precipitation_bg_1h weights "
+            # outfile = outdir + "weights_obs.png"
+            # plot_imshow(weights_obs,0,1,outfile,"jet",title)
+
             # Adding up the two fields according to the weights and replacing the mask_nodata
             image_array1[0,:,:] = weights_obs*image_array1[0,:,:]+weights_bg*image_array3[0,:,:]
             mask_nodata1_p = mask_nodata3_p
-            # plt.imshow(weights_obs)
-            # plt.show()
             mask_nodata = np.logical_or(mask_nodata1_p,mask_nodata2_p)
             mask_nodata = np.ma.masked_where(mask_nodata == True,mask_nodata)
             del mask_nodata1_p,mask_nodata2_p,mask_nodata3_p

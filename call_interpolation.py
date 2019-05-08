@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import interpolate_fcst
+import h5py
+import hiisi
 import numpy as np
 import argparse
 import datetime
@@ -13,7 +15,20 @@ from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.morphology import distance_transform_edt
 
+
 # FUNCTIONS USED
+
+def read(image_file):
+    if image_file.endswith(".nc"):
+        return read_nc(image_file)
+    elif image_file.endswith(".grib2"):
+        return read_grib(image_file)
+    elif image_file.endswith(".h5"):
+        return read_HDF5(image_file)
+    else:
+        print "unsupported file type for file: %s" % (image_file)
+        
+
 
 def ncdump(nc_fid, verb=True):
     '''
@@ -82,16 +97,21 @@ def ncdump(nc_fid, verb=True):
 
 
 
-def read(image_file):
-    if image_file.endswith(".nc"):
-        return read_nc(image_file)
-    elif image_file.endswith(".grib2"):
-        return read_grib(image_file)
-    elif image_file.endswith(".hdf"):
-        return read_HDF5(image_file)
-    else:
-        print "unsupported file type for file: %s" % (image_file)
+def read_nc(image_nc_file):
+    tempds = netCDF4.Dataset(image_nc_file)
+    internal_variable = tempds.variables.keys()[-1]
+    temps = np.array(tempds.variables[internal_variable][:]) # This picks the actual data
+    nodata = tempds.variables[internal_variable].missing_value
+    time_var = tempds.variables["time"]
+    dtime = netCDF4.num2date(time_var[:],time_var.units) # This produces an array of datetime.datetime values
+    
+    # Outside of area all the values are missing. Leave them as they are. They're not affected by the motion vector calculations
+    mask_nodata = np.ma.masked_where(temps == nodata,temps)
+    # Pick min/max values from the data
+    temps_min= temps[np.where(~np.ma.getmask(mask_nodata))].min()
+    temps_max= temps[np.where(~np.ma.getmask(mask_nodata))].max()
 
+    return temps, temps_min, temps_max, dtime, mask_nodata, nodata
 
 
 
@@ -132,24 +152,75 @@ def read_grib(image_grib_file):
 
 
 
-
-def read_nc(image_nc_file):
-    tempds = netCDF4.Dataset(image_nc_file)
-    internal_variable = tempds.variables.keys()[-1]
-    temps = np.array(tempds.variables[internal_variable][:]) # This picks the actual data
-    nodata = tempds.variables[internal_variable].missing_value
-    time_var = tempds.variables["time"]
-    dtime = netCDF4.num2date(time_var[:],time_var.units) # This produces an array of datetime.datetime values
+def read_HDF5(image_h5_file):
+    #Read RATE or DBZH from hdf5 file
+    print 'Extracting data from image h5 file'
+    comp = hiisi.OdimCOMP(image_h5_file, 'r')
+    #Read RATE array if found in dataset      
+    test=comp.select_dataset('RATE')
+    if test != None:
+        image_array=comp.dataset
+        quantity='RATE'
+    else:
+        #Look for DBZH array
+        test=comp.select_dataset('DBZH')
+        if test != None:
+            image_array=comp.dataset
+            quantity='DBZH'
+        else:
+            print 'Error: RATE or DBZH array not found in the input image file!'
+            sys.exit(1)
+    if quantity == 'RATE':
+        quantity_min = options.R_min
+        quantity_max = options.R_max
+    if quantity == 'DBZH':
+        quantity_min = options.DBZH_min
+        quantity_max = options.DBZH_max
     
-    # Outside of area all the values are missing. Leave them as they are. They're not affected by the motion vector calculations
+    #Read nodata and undetect values from metadata for masking
+    gen = comp.attr_gen('nodata')
+    pair = gen.next()
+    nodata = pair.value
+    gen = comp.attr_gen('undetect')
+    pair = gen.next()
+    undetect = pair.value
+    #Read gain and offset values from metadata
+    gen = comp.attr_gen('gain')
+    pair = gen.next()
+    gain = pair.value
+    gen = comp.attr_gen('offset')
+    pair = gen.next()
+    offset = pair.value
+    #Read timestamp from metadata
+    gen = comp.attr_gen('date')
+    pair = gen.next()
+    date = pair.value
+    gen = comp.attr_gen('time')
+    pair = gen.next()
+    time = pair.value
+
+    timestamp=date+time
+    dtime = datetime.datetime.strptime(timestamp, "%Y%m%d%H%M%S")
+
+    # Flip latitude dimension
+    image_array = np.flipud(image_array)
+    tempsl = []
+    tempsl.append(image_array)
+    temps = np.asarray(tempsl)
+    
+    #Masks of nodata and undetect
     mask_nodata = np.ma.masked_where(temps == nodata,temps)
-    # Pick min/max values from the data
+    mask_undetect = np.ma.masked_where(temps == undetect,temps)
+    #Change to physical values
+    temps=temps*gain+offset
+    #Mask undetect values as 0 and nodata values as nodata
+    temps[np.where(np.ma.getmask(mask_undetect))] = 0
+    temps[np.where(np.ma.getmask(mask_nodata))] = nodata
+    
     temps_min= temps[np.where(~np.ma.getmask(mask_nodata))].min()
     temps_max= temps[np.where(~np.ma.getmask(mask_nodata))].max()
 
-    # The script returns four variables: the actual data, timestamps, nodata_mask and the actual nodata value
     return temps, temps_min, temps_max, dtime, mask_nodata, nodata
-
 
 
 
@@ -162,16 +233,12 @@ def write(interpolated_data,image_file,write_file,variable,predictability):
     else:
         print "unsupported file type for file: %s" % (image_file)
         return
-
     print "wrote file '%s'" % write_file
 
 
 
-
 def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predictability):
-
     # (Almost) all the metadata is copied from modeldata.grib2
-
     try:
         os.remove(write_grib_file)
     except OSError,e:
@@ -213,7 +280,6 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
 
 
 
-
 def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictability):
     
     # All the metadata is copied from modeldata.nc
@@ -252,7 +318,6 @@ def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictabili
 
 
 
-
 def farneback_params_config(config_file_name):
     config = ConfigParser.RawConfigParser()
     config.read(config_file_name)
@@ -268,8 +333,6 @@ def farneback_params_config(config_file_name):
 
 
 
-
-
 def main():
     
     # #Read parameters from config file for interpolation or optical flow algorithm. The function for reading the parameters is defined above.
@@ -279,12 +342,8 @@ def main():
     # In "forecast mode", only one model timestep is given as an argument
 
     # Always load in at least observation data and model data
-    # In case Tuliset2-type HDF5 data is read in (this function is not even at the program atm)
-    if options.parameter == 'Precipitation1h_TULISET':
-        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1 = read_HDF5("/fmi/data/nowcasting/testdata_radar/opera_rate/T_PAAH21_C_EUOC_20180613120000.hdf")
-    else:
-        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obsdata)
-        quantity1 = options.parameter
+    image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obsdata)
+    quantity1 = options.parameter
     # The second field is always the forecast field to where the blending is done to
     image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.modeldata)
     quantity2 = options.parameter
@@ -325,6 +384,11 @@ def main():
         image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3, longitudes3, latitudes3 = read(options.bgdata)
         quantity3 = options.parameter
 
+        # Read radar composite field used as mask for LAPS. Lat/lon info is not stored in radar composite HDF5 files, but these are the same! (see README.txt)
+        image_array4, quantity4_min, quantity4_max, timestamp4, mask_nodata4, nodata4 = read(options.detectabilitydata)
+        # As the detectability field is used only as a mask, change all not-nodata values to zero
+        image_array4[np.where(~np.ma.getmask(mask_nodata4))] = 0
+
         # Checking if all latitude/longitude/timestamps in the different data sources correspond to each other
         if (np.array_equal(longitudes1,longitudes2) and np.array_equal(longitudes1,longitudes3) and np.array_equal(latitudes1,latitudes2) and np.array_equal(latitudes1,latitudes3)):
             longitudes = longitudes1
@@ -334,13 +398,17 @@ def main():
             mask_nodata1_p = np.sum(np.ma.getmask(mask_nodata1),axis=0)>0
             mask_nodata2_p = np.sum(np.ma.getmask(mask_nodata2),axis=0)>0
             mask_nodata3_p = np.sum(np.ma.getmask(mask_nodata3),axis=0)>0
+            mask_nodata4_p = np.sum(np.ma.getmask(mask_nodata4),axis=0)>0
+            # Combining masks from radar detectability and LAPS
+            mask_nodata5_p = np.sum(np.ma.getmask(mask_nodata4)+np.ma.getmask(mask_nodata1),axis=0)>0
+
         
             # Creating a linear smoother field: More weight for bg near the bg/obs border and less at the center of obs field
             # Gaussian smoother widens the coefficients so initially calculate from smaller mask the values
-            mask_smaller_than_borders = 20 # Controls how many pixels the initial mask is compared to obs field
-            smoother_coefficient = 0.6 # Controls how long from the borderline bg field is affecting
-            gaussian_filter_coefficient = 10 # Sets the smoothiness of the weight field
-            used_mask = distance_transform_edt(np.logical_not(mask_nodata1_p))
+            mask_smaller_than_borders = 4 # Controls how many pixels the initial mask is compared to obs field
+            smoother_coefficient = 0.2 # Controls how long from the borderline bg field is affecting
+            gaussian_filter_coefficient = 3 # Sets the smoothiness of the weight field
+            used_mask = distance_transform_edt(np.logical_not(mask_nodata5_p))
             used_mask = np.where(used_mask <= mask_smaller_than_borders,True,False)
             used_mask = distance_transform_edt(np.logical_not(used_mask))
             weights_obs = gaussian_filter(used_mask,gaussian_filter_coefficient)
@@ -411,6 +479,9 @@ if __name__ == '__main__':
     parser.add_argument('--bgdata',
                         default="testdata/2019032708/mnwc_tprate.grib2",
                         help='Background field data where obsdata is merged to, having the same timestamp as obs data.')
+    parser.add_argument('--detectabilitydata',
+                        default="testdata/radar_detectability_field.h5",
+                        help='Radar detectability field, which is used in spatial blending of obsdata and bgdata.')
     parser.add_argument('--seconds_between_steps',
                         type=int,
                         default=3600,

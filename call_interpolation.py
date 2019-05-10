@@ -321,12 +321,12 @@ def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictabili
 def farneback_params_config(config_file_name):
     config = ConfigParser.RawConfigParser()
     config.read(config_file_name)
-    farneback_pyr_scale  = config.getfloat("optflow",    "pyr_scale")
-    farneback_levels     = config.getint("optflow",      "levels")
-    farneback_winsize    = config.getint("optflow",      "winsize")
-    farneback_iterations = config.getint("optflow",      "iterations")
-    farneback_poly_n     = config.getint("optflow",      "poly_n")
-    farneback_poly_sigma = config.getfloat("optflow",    "poly_sigma")
+    farneback_pyr_scale  = config.getfloat("optflow", "pyr_scale")
+    farneback_levels     = config.getint("optflow", "levels")
+    farneback_winsize    = config.getint("optflow", "winsize")
+    farneback_iterations = config.getint("optflow", "iterations")
+    farneback_poly_n     = config.getint("optflow", "poly_n")
+    farneback_poly_sigma = config.getfloat("optflow", "poly_sigma")
     farneback_params = (farneback_pyr_scale,  farneback_levels, farneback_winsize, 
                         farneback_iterations, farneback_poly_n, farneback_poly_sigma, 0)
     return farneback_params

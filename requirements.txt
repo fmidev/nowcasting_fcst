@@ -2,5 +2,6 @@ opencv-python>=3.1.0.3
 scipy>=0.19.1
 netCDF4>=1.4.0
 Pillow>=3.4.2
-h5py
-hiisi
+h5py>=2.9.0
+hiisi>=0.0.9
+configparser>=3.7.1

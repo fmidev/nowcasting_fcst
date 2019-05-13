@@ -16,3 +16,5 @@ RUN cd nowcasting_fcst && \
 	pip install --upgrade setuptools && \
 	pip install -r requirements.txt
 
+# OpenShift user mapping
+USER 1459:10000

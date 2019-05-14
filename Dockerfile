@@ -16,5 +16,8 @@ RUN cd nowcasting_fcst && \
 	pip install --upgrade setuptools && \
 	pip install -r requirements.txt
 
+# Change testdata ownership so that test run succeeds
+RUN chown 1459:10000 /nowcasting_fcst/testdata
+
 # OpenShift user mapping
 USER 1459:10000

@@ -156,20 +156,28 @@ def read_HDF5(image_h5_file):
     #Read RATE or DBZH from hdf5 file
     print 'Extracting data from image h5 file'
     comp = hiisi.OdimCOMP(image_h5_file, 'r')
-    #Read RATE array if found in dataset      
-    test=comp.select_dataset('RATE')
+    # #Read RATE array if found in dataset      
+    # test=comp.select_dataset('RATE')
+    # if test != None:
+    #     image_array=comp.dataset
+    #     quantity='RATE'
+    # else:
+    #     #Look for DBZH array
+    #     test=comp.select_dataset('DBZH')
+    #     if test != None:
+    #         image_array=comp.dataset
+    #         quantity='DBZH'
+    #     else:
+    #         print 'Error: RATE or DBZH array not found in the input image file!'
+    #         sys.exit(1)
+    #Look for DBZH array
+    test=comp.select_dataset('DBZH')
     if test != None:
         image_array=comp.dataset
-        quantity='RATE'
+        quantity='DBZH'
     else:
-        #Look for DBZH array
-        test=comp.select_dataset('DBZH')
-        if test != None:
-            image_array=comp.dataset
-            quantity='DBZH'
-        else:
-            print 'Error: RATE or DBZH array not found in the input image file!'
-            sys.exit(1)
+        print 'Error: RATE or DBZH array not found in the input image file!'
+        sys.exit(1)
     if quantity == 'RATE':
         quantity_min = options.R_min
         quantity_max = options.R_max
@@ -319,7 +327,7 @@ def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictabili
 
 
 def farneback_params_config(config_file_name):
-    config = ConfigParser.RawConfigParser()
+    config = ConfigParser.ConfigParser()
     config.read(config_file_name)
     farneback_pyr_scale  = config.getfloat("optflow", "pyr_scale")
     farneback_levels     = config.getint("optflow", "levels")

@@ -16,6 +16,12 @@ wrote file 'outdata/interp.grib2'
 # python2 call_interpolation.py --obsdata testdata/2019020409/obs_2t.grib2 --modeldata testdata/2019020409/fcst_2t.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi_2t.grib2 --parameter Temperature
 # python2 call_interpolation.py --obsdata testdata/2019020409/obs_msl.grib2 --modeldata testdata/2019020409/fcst_msl.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi_msl.grib2 --parameter msl
 # python2 call_interpolation.py --obsdata testdata/2019032708/obs_tprate.grib2 --modeldata testdata/2019032708/fcst_tprate.grib2 --bgdata testdata/2019032708/mnwc_tprate.grib2 --interpolated_data testdata/2019032708/output/interpolated_tprate.grib2 --parameter precipitation_bg_1h
+# EDITING AREA WAS CHANGED AT THE END OF MAY 2019, CAUSING PRECIPITATION CODE TO CRASH. NEW CALLS USING TESTDATA FROM THE NEW EDITING AREA ARE BELOW
+# python2 call_interpolation.py --obsdata testdata/2019052809/obs_2t.grib2 --modeldata testdata/2019052809/fcst_2t.grib2 --interpolated_data testdata/2019052809/output/interpolated_uusi_2t.grib2 --parameter Temperature
+# python2 call_interpolation.py --obsdata testdata/2019052809/obs_msl.grib2 --modeldata testdata/2019052809/fcst_msl.grib2 --interpolated_data testdata/2019052809/output/interpolated_uusi_msl.grib2 --parameter msl
+# python2 call_interpolation.py --obsdata testdata/2019052809/obs_tprate.grib2 --modeldata testdata/2019052809/fcst_tprate.grib2 --bgdata testdata/2019052809/mnwc_tprate.grib2 --interpolated_data testdata/2019052809/output/interpolated_tprate.grib2 --parameter precipitation_bg_1h
+
+
 
 
 # The testdata files were retrieved from Smartmet Server using commands

@@ -10,6 +10,7 @@ import netCDF4
 import sys
 import os
 import time
+import cv2
 from eccodes import *
 from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
@@ -396,7 +397,11 @@ def main():
         image_array4, quantity4_min, quantity4_max, timestamp4, mask_nodata4, nodata4 = read(options.detectabilitydata)
         # As the detectability field is used only as a mask, change all not-nodata values to zero
         image_array4[np.where(~np.ma.getmask(mask_nodata4))] = 0
-
+        # If the radar detectability field size does not match with that of background field, interpolate this field to match that
+        image_array4 = cv2.resize(image_array4[0,:,:], dsize=image_array3.shape[1:3], interpolation=cv2.INTER_NEAREST)
+        mask_nodata4 = cv2.resize(mask_nodata4[0,:,:], dsize=image_array3.shape[1:3], interpolation=cv2.INTER_NEAREST)
+        image_array4 = np.expand_dims(image_array4, axis=0)
+        mask_nodata4 = np.expand_dims(mask_nodata4, axis=0)
         # Checking if all latitude/longitude/timestamps in the different data sources correspond to each other
         if (np.array_equal(longitudes1,longitudes2) and np.array_equal(longitudes1,longitudes3) and np.array_equal(latitudes1,latitudes2) and np.array_equal(latitudes1,latitudes3)):
             longitudes = longitudes1
@@ -479,13 +484,13 @@ if __name__ == '__main__':
     #Parse commandline arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--obsdata',
-                        default="testdata/2019032708/obs_tprate.grib2",
+                        default="testdata/2019052809/obs_tprate.grib2",
                         help='Obs data, representing the first time step used in image morphing.')
     parser.add_argument('--modeldata',
-                        default="testdata/2019032708/fcst_tprate.grib2",
+                        default="testdata/2019052809/fcst_tprate.grib2",
                         help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
     parser.add_argument('--bgdata',
-                        default="testdata/2019032708/mnwc_tprate.grib2",
+                        default="testdata/2019052809/mnwc_tprate.grib2",
                         help='Background field data where obsdata is merged to, having the same timestamp as obs data.')
     parser.add_argument('--detectabilitydata',
                         default="testdata/radar_detectability_field.h5",
@@ -495,7 +500,7 @@ if __name__ == '__main__':
                         default=3600,
                         help='Seconds between interpolated steps.')
     parser.add_argument('--interpolated_data',
-                        default='testdata/2019032708/output/interpolated_tprate.grib2',
+                        default='testdata/2019052809/output/interpolated_tprate.grib2',
                         help='Output file name for nowcast data.')
     parser.add_argument('--predictability',
                         type=int,

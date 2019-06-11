@@ -347,6 +347,12 @@ def main():
     # #Read parameters from config file for interpolation or optical flow algorithm. The function for reading the parameters is defined above.
     farneback_params=farneback_params_config(options.farneback_params)
 
+    if options.parameter == 'precipitation_bg_1h':
+        farneback_params = list(farneback_params)
+        farneback_params[2] = 150
+        farneback_params[4] = 60
+        farneback_params = tuple(farneback_params)
+
     # In the "verification mode", the idea is to load in the "observational" and "forecast" datasets as numpy arrays. Both of these numpy arrays ("image_array") contain ALL the timesteps contained also in the files themselves. In addition, the returned variables "timestamp" and "mask_nodata" contain the values for all the timesteps.
     # In "forecast mode", only one model timestep is given as an argument
 

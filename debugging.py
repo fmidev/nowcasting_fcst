@@ -16,7 +16,7 @@ from scipy.misc import imresize
 from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.morphology import distance_transform_edt
 import matplotlib.pyplot as plt
-import pygrib
+# import pygrib
 import matplotlib.colors as colors
 from mpl_toolkits.basemap import Basemap
 from mpl_toolkits.basemap import shiftgrid

@@ -1,4 +1,5 @@
 #!/bin/bash
+# This is a debugging script that runs with example data in the Git repo and outputs diagnostics plots from the runs to directory figures/
 
 mkdir -p figures/fields
 mkdir -p figures/jumpiness_absdiff

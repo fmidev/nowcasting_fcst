@@ -1,5 +1,13 @@
 #!/bin/bash
 
+mkdir -p figures/fields
+mkdir figures/jumpiness_absdiff
+mkdir figures/jumpiness_meandiff
+mkdir figures/linear_change
+mkdir figures/linear_change3h
+mkdir figures/linear_change4h
+
+
 python2 debugging.py --obsdata testdata/2019020409/obs_2t.grib2 --modeldata testdata/2019020409/fcst_2t.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi2_2t.grib2 --parameter Temperature
 python2 debugging.py --obsdata testdata/2019020409/obs_2r.grib2 --modeldata testdata/2019020409/fcst_2r.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi2_2r.grib2 --parameter Dewpoint
 python2 debugging.py --obsdata testdata/2019020409/obs_msl.grib2 --modeldata testdata/2019020409/fcst_msl.grib2 --interpolated_data testdata/2019020409/output/interpolated_uusi2_msl.grib2 --parameter msl

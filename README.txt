@@ -20,6 +20,7 @@ wrote file 'outdata/interp.grib2'
 # python2 call_interpolation.py --obsdata testdata/2019052809/obs_2t.grib2 --modeldata testdata/2019052809/fcst_2t.grib2 --interpolated_data testdata/2019052809/output/interpolated_uusi_2t.grib2 --parameter Temperature
 # python2 call_interpolation.py --obsdata testdata/2019052809/obs_msl.grib2 --modeldata testdata/2019052809/fcst_msl.grib2 --interpolated_data testdata/2019052809/output/interpolated_uusi_msl.grib2 --parameter msl
 # python2 call_interpolation.py --obsdata testdata/2019052809/obs_tprate.grib2 --modeldata testdata/2019052809/fcst_tprate.grib2 --bgdata testdata/2019052809/mnwc_tprate.grib2 --interpolated_data testdata/2019052809/output/interpolated_tprate.grib2 --parameter precipitation_bg_1h
+# python2 call_interpolation.py --obsdata testdata/TCC/mnwc.grib2 --modeldata testdata/TCC/smartmet.grib2 --interpolated_data testdata/TCC/output/smoothed_mnwc_edited.grib2 --parameter total_cloud_cover --mode model_fcst_smoothed
 
 
 

@@ -347,6 +347,7 @@ def main():
     # #Read parameters from config file for interpolation or optical flow algorithm. The function for reading the parameters is defined above.
     farneback_params=farneback_params_config(options.farneback_params)
 
+    # For accumulated 1h precipitation, larger surrounding area for Farneback params are used: winsize 30 -> 150 and poly_n 20 -> 61
     if options.parameter == 'precipitation_bg_1h':
         farneback_params = list(farneback_params)
         farneback_params[2] = 150
@@ -357,20 +358,51 @@ def main():
     # In "forecast mode", only one model timestep is given as an argument
 
     # Always load in at least observation data and model data
+    # 
     image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obsdata)
     quantity1 = options.parameter
     # The second field is always the forecast field to where the blending is done to
     image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.modeldata)
     quantity2 = options.parameter
 
-    # In verification mode timestamps must be the same, otherwise exiting!
+    # In verif and model_fcst_smoothed modes, the timestamps must be the completely the same, otherwise exiting!
     if (options.mode == "verif" and sum(timestamp1 == timestamp2)!=timestamp1.shape[0]):
         raise ValueError("obs and model data have different timestamps!")
-        # sys.exit( "Timestamps do not match!" )    
-
+        # sys.exit( "Timestamps do not match!" )
+    # If not in verification mode, check that the first timestamps of the data are the same.
+    # If not, (but found elsewhere) throw an warning and reduce data / (if found nowhere) throw an error and abort
+    if (options.mode == "analysis_fcst_smoothed" or options.mode == "model_fcst_smoothed"):
+        try:
+            (timestamp2.index(timestamp1[0]))
+        except:
+            raise ValueError("model data does not have the same timestamp as observation!")
+        # If did not exit, then check if the obsdata timestamp and modeldata[0] timestamps correspond to each other.
+        # If needed, reduce the length of timestamp2/image_array2 so that the first element corresponds with the data of timestamp1[0]
+        if (timestamp2.index(timestamp1[0])!=0):
+            data_beginning = image_array2[:timestamp2.index(timestamp1[0]),:,:]
+            timestamp_beginning = timestamp2[:timestamp2.index(timestamp1[0])]
+            image_array2 = image_array2[timestamp2.index(timestamp1[0]):,:,:]
+            timestamp2 = timestamp2[timestamp2.index(timestamp1[0]):]
+    # In fcst_model_smoothed -mode the timestamp1 and timestamp2 must be exactly the same, so reduce image_array2 to match with image_array1 if needed
+    if (options.mode == "model_fcst_smoothed"):
+        try:
+            (timestamp2.index(timestamp1[-1]))
+        except:
+            raise ValueError("model data does not have the same timestamp as observation!")
+        # If did not exit, then check if the obsdata timestamp and modeldata[-1] timestamps correspond to each other.
+        # If needed, reduce the length of timestamp2/image_array2 so that the first element corresponds with the data of timestamp1[0]
+        if (timestamp2.index(timestamp1[-1])!=(len(timestamp2)-1)):
+            data_end = image_array2[timestamp2.index(timestamp1[-1])+1:,:,:]
+            timestamp_end = timestamp2[timestamp2.index(timestamp1[-1])+1:]
+            image_array2 = image_array2[:timestamp2.index(timestamp1[-1])+1,:,:]
+            timestamp2 = timestamp2[:timestamp2.index(timestamp1[-1])+1]
+    
+    
     # If the the smoothed parameter is NOT precipitation_bg_1h
-    if options.parameter != 'precipitation_bg_1h':
+    if ((options.parameter == 'precipitation_bg_1h' and options.mode == "analysis_fcst_smoothed")==False):
         # Defining a masked array that is the same for all forecast fields and both producers (if even one forecast length is missing for a specific grid point, that grid point is masked out from all fields).
+        
+        
         mask_nodata1_p = np.sum(np.ma.getmask(mask_nodata1),axis=0)>0
         mask_nodata2_p = np.sum(np.ma.getmask(mask_nodata2),axis=0)>0
         mask_nodata = np.logical_or(mask_nodata1_p,mask_nodata2_p)
@@ -464,7 +496,7 @@ def main():
     #Resize observation field to same resolution with model field and slightly blur to make the two fields look more similar for OpenCV.
     # NOW THE PARAMETER IS A CONSTANT AD-HOC VALUE!!!
 #     reshaped_size = list(image_array2.shape)
-#     if (options.mode == "fcst"):
+#     if (options.mode == "analysis_fcst_smoothed"):
 #         reshaped_size[0] = 1
 #     image_array1_reshaped=np.zeros(reshaped_size)
 #     for n in range(0,image_array1.shape[0]):
@@ -478,8 +510,19 @@ def main():
 
     # Like mentioned at https://docs.opencv.org/2.4/modules/video/doc/motion_analysis_and_object_tracking.html, a reasonable value for poly_sigma depends on poly_n. Here we use a fraction 4.6 for these values.
     fb_params = (farneback_params[0],farneback_params[1],farneback_params[2],farneback_params[3],farneback_params[4],(farneback_params[4] / 4.6),farneback_params[6])
-    # Interpolated data
-    interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
+
+    # Interpolate data in either analysis_fcst_smoothed or model_fcst_smoothed -mode
+    if (options.mode == "analysis_fcst_smoothed"):
+        interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
+    if (options.mode == "model_fcst_smoothed"):
+        interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
+
+        
+    # Combine with cropped data if necessary
+    if 'data_beginning' in globals():
+        interpolated_advection = np.concatenate((data_beginning,interpolated_advection),axis=0)
+    if 'data_end' in globals():
+        interpolated_advection = np.concatenate((interpolated_advection,data_end),axis=0)
 
     # Save interpolated field to a new file
     write(interpolated_data=interpolated_advection,image_file=options.modeldata,write_file=options.interpolated_data,variable=options.parameter,predictability=options.predictability)
@@ -492,10 +535,10 @@ if __name__ == '__main__':
     #Parse commandline arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--obsdata',
-                        default="testdata/2019052809/obs_tprate.grib2",
+                        default="testdata/TCC/smartmet.grib2",
                         help='Obs data, representing the first time step used in image morphing.')
     parser.add_argument('--modeldata',
-                        default="testdata/2019052809/fcst_tprate.grib2",
+                        default="testdata/TCC/mnwc.grib2",
                         help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
     parser.add_argument('--bgdata',
                         default="testdata/2019052809/mnwc_tprate.grib2",
@@ -515,11 +558,11 @@ if __name__ == '__main__':
                         default='4',
                         help='Predictability in hours. Between the analysis and forecast of this length, forecasts need to be interpolated')
     parser.add_argument('--parameter',
-                        default='precipitation_bg_1h',
+                        default='total_cloud_cover',
                         help='Variable which is handled.')
     parser.add_argument('--mode',
-                        default='fcst',
-                        help='Either "verif" or "fcst" mode. In verification mode, verification statistics are calculated from the blended forecasts. In forecast mode no.')
+                        default='analysis_fcst_smoothed',
+                        help='Either "verif", "analysis_fcst_smoothed" or "model_fcst_smoothed" mode. In verification mode, verification statistics are calculated from the blended forecasts. In forecast mode no.')
     parser.add_argument('--gaussian_filter_sigma',
                         type=float,
                         default=0.5,

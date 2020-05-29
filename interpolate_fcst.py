@@ -145,7 +145,8 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
     fields ordered by time, having the size "predictability".
      The first time is always R1 and the last time the model field
   """
-  
+
+  # OBS! modelfields contains also analysis time step as step zero!
   R1 = obsfields[0,:,:]
   R2 = modelfields[predictability,:,:]
   n_interp_frames = predictability*3600/seconds_between_steps - 1 # predictability is defined in hours
@@ -211,8 +212,8 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
 
 
 
-def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, predictability, seconds_between_steps, R_min=0.1, R_max=30.0, missingval=nan, logtrans=False):
-  """Temporal interpolation between two fields, where motion vectors are calculated separately for each field. The weighting of the fcst1 and fcst2 follows an S-curve so that the .
+def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, seconds_between_steps, predictability=None, R_min=0.1, R_max=30.0, missingval=nan, logtrans=False, sigmoid_steepness=-3.5):
+  """Temporal interpolation between two fields, where motion vectors are calculated separately for each field. The weight coefficients of the fcst1 and fcst2 follows an S-curve which is defined based on data length.
   
   Parameters
   ----------
@@ -238,7 +239,7 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, predi
     If True, logarithm is taken from R1 and R2 when computing the motion 
     vectors. This might improve the reliability of motion estimation.
   predictability : int
-    Predictability in hours
+    Predictability in hours. Forecast length "predictability" is completely model-based -field whereas (predictability-1) hours is a composite!
   seconds_between_steps: int
     How long should two timesteps differ to each other?
   
@@ -247,23 +248,24 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, predi
   out : array
     List of two-dimensional arrays containing the interpolated precipitation 
     fields ordered by time, having the size "predictability".
-     The first time is always R1 and the last time the model field
+     The first time step is always obsfield and the last smoothed time step (forecast length predictability) modelfield
   """
 
-
-  # Initializing the result list with the image_array1[0] and image_array2[-1]
-  shapes = list(modelfields.shape)
-  R_interp = ones(shapes)
-  R_interp[0,:,:] = obsfields[0,:,:]
-  R_interp[-1,:,:] = modelfields[-1,:,:]
-
-  
-  # Do the motion vector calculation for each time step separately (using whole forecast length)
-  all_fcst_lengths = range(1,(obsfields.shape[0]))
+  if predictability == None:
+    raise ValueError("You need to explicitly pass a predictability value to this function!")
+  # Do the motion vector calculation for each time step separately (using whole forecast length, PREDICTABILITY)
+  all_fcst_lengths = range(1,predictability+1) # range(1,(obsfields.shape[0])) Here, first forecast length has a non-zero coefficient and the last forecast length coefficient of one (only modelfield is used).
   n_interp_frames = len(all_fcst_lengths) # predictability is defined in hours
   # Here, a normalized half sigmoid function is used instead of linear
   # tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
-  tws = sigmoid_array(np.linspace(-3.5,0,n_interp_frames))/0.5
+  tws = sigmoid_array(np.linspace(sigmoid_steepness,0,n_interp_frames))/0.5
+
+
+  # Initializing the result list with the modelfields
+  shapes = list(modelfields.shape)
+  R_interp = np.copy(modelfields)
+  R_interp[0,:,:] = obsfields[0,:,:]
+  
   for fcst_length in all_fcst_lengths:
       R1 = obsfields[fcst_length,:,:]
       R2 = modelfields[fcst_length,:,:]

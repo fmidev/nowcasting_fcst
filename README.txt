@@ -22,6 +22,13 @@ wrote file 'outdata/interp.grib2'
 # python2 call_interpolation.py --obsdata testdata/2019052809/obs_tprate.grib2 --modeldata testdata/2019052809/fcst_tprate.grib2 --bgdata testdata/2019052809/mnwc_tprate.grib2 --interpolated_data testdata/2019052809/output/interpolated_tprate.grib2 --parameter precipitation_bg_1h
 # python2 call_interpolation.py --obsdata testdata/TCC/mnwc.grib2 --modeldata testdata/TCC/smartmet.grib2 --interpolated_data testdata/TCC/output/smoothed_mnwc_edited.grib2 --parameter total_cloud_cover --mode model_fcst_smoothed
 
+# AFTER MAJOR CODE REVISION (June2020) EXAMPLE RUNS ARE AS
+# python2 call_interpolation.py --obs_data testdata/2020052509/obs_tprate.grib2 --model_data testdata/2020052509/fcst_tprate.grib2 --background_data testdata/2020052509/mnwc_tprate.grib2 --dynamic_nwc_data testdata/2020052509/mnwc_tprate_full.grib2 --extrapolated_data testdata/2020052509/ppn_tprate.grib2 --detectability_data testdata/radar_detectability_field_255_280.h5 --output_data testdata/2020052509/output/smoothed_mnwc_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 5
+# python2 call_interpolation.py --model_data testdata/TCC/smartmet.grib2 --dynamic_nwc_data testdata/TCC/mnwc.grib2 --output_data testdata/TCC/output/smoothed_mnwc_TCC.grib2 --parameter total_cloud_cover --mode model_fcst_smoothed --predictability 9
+# python2 call_interpolation.py --obs_data testdata/2019020409/obs_2t.grib2 --model_data testdata/2019020409/fcst_2t.grib2 --output_data testdata/2019020409/output/interpolated_2t.grib2 --parameter Temperature --mode analysis_fcst_smoothed --predictability 4
+# python2 call_interpolation.py --obs_data testdata/2019020409/obs_2r.grib2 --model_data testdata/2019020409/fcst_2r.grib2 --output_data testdata/2019020409/output/interpolated_2r.grib2 --parameter Dewpoint --mode analysis_fcst_smoothed --predictability 4
+# python2 call_interpolation.py --obs_data testdata/2019020409/obs_msl.grib2 --model_data testdata/2019020409/fcst_msl.grib2 --output_data testdata/2019020409/output/interpolated_msl.grib2 --parameter msl --mode analysis_fcst_smoothed --predictability 4
+# python2 call_interpolation.py --obs_data testdata/2019020409/obs_10si.grib2 --model_data testdata/2019020409/fcst_10si.grib2 --output_data testdata/2019020409/output/interpolated_10si.grib2 --parameter win10 --mode analysis_fcst_smoothed --predictability 4
 
 
 
@@ -59,3 +66,7 @@ wrote file 'outdata/interp.grib2'
 # For reading in 1h radar accumulations as an input data, the HDF5 reader function needs to be re-imported from the nowcasting-repo.
 
 # PARAMETERS used are Pressure Temperature DewPoint Humidity WindSpeedMS (currently available in LAPS-analysis)
+
+
+# Known issues:
+# nodata fields are taken from the model field (nodata = nodata2), but this value is ASSUMED to be the same also for all the other fields. nodata1,nodatax1,... would need to be replaced in all the other fields with nodata values.

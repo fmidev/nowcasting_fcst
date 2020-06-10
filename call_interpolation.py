@@ -17,7 +17,8 @@ from scipy.ndimage.filters import gaussian_filter
 from scipy.ndimage.morphology import distance_transform_edt
 
 
-# FUNCTIONS USED
+
+### FUNCTIONS USED ###
 
 def read(image_file,added_hours=0):
     if image_file.endswith(".nc"):
@@ -498,12 +499,13 @@ def main():
         if (options.parameter == 'precipitation_1h_bg'):
             timestampx1 = timestamp2[1:]
         
-    # Loading in extrapolated_data. First value in data is the first forecast step, not analysis!
+    # Loading in extrapolated_data. Currently supports only PPN data, where first value in data is the the 1h forecast, not analysis!
     if options.extrapolated_data!=None:
         image_arrayx2, quantityx2_min, quantityx2_max, timestampx2, mask_nodatax2, nodatax2, longitudesx2, latitudesx2 = read(options.extrapolated_data)
         quantityx2 = options.parameter
-        # copy timestamps from timestamp2 (in case PPN timestamps are not properly parsed). Also, this run only supports fixed PPN runtimes (xx:00)
-        timestampx2 = timestamp2[1:(len(timestampx2)+1)]
+        # For 1h precipitation nowcasts, copy timestamps from timestamp2 (in case PPN timestamps are not properly parsed). Also, this run only supports fixed PPN runtimes (xx:00)
+        if (options.parameter == 'precipitation_1h_bg'):
+            timestampx2 = timestamp2[1:(len(timestampx2)+1)]
         
     # If both extrapolated_data and dynamic_nwc_data are read in, combine them spatially by using mask
     if 'image_arrayx1' in locals() and 'image_arrayx2' in locals():
@@ -523,15 +525,18 @@ def main():
                     raise ValueError("Model data, background data and image do not all have same grid size!")
                 # Adding up the two fields (obs_data for area over Finland, bg field for area outside Finland)
                 if dynamic_nwc_data_common_indices[common_index]!=None:
-                    image_arrayx3[dynamic_nwc_data_common_indices[common_index],:,:] = weights_obs*image_arrayx2[common_index,:,:]+weights_bg*image_arrayx1[dynamic_nwc_data_common_indices[common_index],:,:]
+                    image_arrayx3[dynamic_nwc_data_common_indices[common_index],:,:] = weights_obs*image_arrayx2[common_index,:,:] + weights_bg*image_arrayx1[dynamic_nwc_data_common_indices[common_index],:,:]
             # After nwc_dynamic_data and extrapolated_data have been spatially combined for all the forecast steps, then calculate interpolated values between the fields image_arrayx1 and image_arrayx3
             # As there always is more than one common timestamp between these data, always combine them using model_smoothing -method!
             if (options.mode == "model_fcst_smoothed" or options.mode == "analysis_fcst_smoothed"):
+                # Defining mins and max in all data
+                R_min_nwc = min(image_arrayx1.min(),image_arrayx3.min())
+                R_max_nwc = max(image_arrayx1.max(),image_arrayx3.max())
                 # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values!
                 if (options.parameter == "precipitation_1h_bg"):
-                   image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=0, R_max=options.R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-2)
+                   image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-2)
                 else:
-                    raise ValueError("Only precipitation_1h_bg variable is supported by the code!")
+                    raise ValueError("Only precipitation_1h_bg variable is supported by the code! Provide variable-dependent value for sigmoid_steepness! Revise also the bg mask used!")
             else:
                 raise ValueError("Mode must be either model_fcst_smoothed or analysis_fcst_smoothed!")
         else:
@@ -644,7 +649,227 @@ def main():
         
     # Save interpolated field to a new file
     write(interpolated_data=interpolated_advection,image_file=options.model_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability)
+
+
+
+
+
+
+
+
     
+    ### PLOT OUT DIAGNOSTICS FROM THE DATA ###
+    if (options.plot_diagnostics == 'yes'):
+        import diagnostics_functions
+        import matplotlib.pyplot as plt
+        import matplotlib.colors as colors
+        from mpl_toolkits.basemap import Basemap
+        from mpl_toolkits.basemap import shiftgrid
+        
+        # Create directories which do not yet exist
+        if not os.path.exists("figures/"):
+            os.makedirs("figures/")
+        if not os.path.exists("figures/fields/"):
+            os.makedirs("figures/fields/")
+        if not os.path.exists("figures/linear_change/"):
+            os.makedirs("figures/linear_change/")
+        if not os.path.exists("figures/linear_change3h/"):
+            os.makedirs("figures/linear_change3h/")
+        if not os.path.exists("figures/linear_change4h/"):
+            os.makedirs("figures/linear_change4h/")
+        if not os.path.exists("figures/jumpiness_absdiff/"):
+            os.makedirs("figures/jumpiness_absdiff/")
+        if not os.path.exists("figures/jumpiness_meandiff/"):
+            os.makedirs("figures/jumpiness_meandiff/")
+        if not os.path.exists("figures/jumpiness_ratio/"):
+            os.makedirs("figures/jumpiness_ratio/")
+
+        interpolated_advection_uusi, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes, latitudes = read(options.output_data)
+        outdir = "figures/fields/"
+
+        # Plot unmodified obs data if it exists
+        if options.obs_data!=None:
+            image_array_obs_data, quantity_obs_data_min, quantity_obs_data_max, timestamp_obs_data, mask_nodata_obs_data, nodata_obs_data, longitudes_obs_data, latitudes_obs_data = read(options.obs_data)
+            quantity_plot = options.parameter
+            # Plotting LAPS field as it is in the uncombined file
+            title = "LAPS "
+            outfile = outdir + "image_array_obs_data.png"
+            diagnostics_functions.plot_imshow_on_map(image_array_obs_data[0,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
+
+        # Plot unmodified background data if it exists
+        if options.background_data!=None:
+            image_array_plot, quantity_plot_min, quantity_plot_max, timestamp_plot, mask_nodata_plot, nodata_plot, longitudes_plot, latitudes_plot = read(options.background_data)
+            quantity_plot = options.parameter
+            title = "MNWC 0hours"
+            outfile = outdir + "image_array_MNWC_0hours.png"
+            diagnostics_functions.plot_imshow_on_map(image_array_plot[0,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
+            if 'mask_nodata_obs_data' in locals():
+                # Read radar composite field used as mask for Finnish data. Lat/lon info is not stored in radar composite HDF5 files, but these are the same! (see README.txt)
+                weights_bg = read_background_data_and_make_mask(image_file=options.detectability_data, input_mask=define_common_mask_for_fields(mask_nodata_obs_data), mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3)
+                weights_obs = 1 - weights_bg
+                title = "weights "
+                outfile = outdir + "image_array_weights.png"
+                diagnostics_functions.plot_imshow_on_map(weights_bg,0,1,outfile,"jet",title,longitudes,latitudes)
+
+        # Plot dynamic_nwc_data if it exists
+        if options.dynamic_nwc_data!=None:
+            if (options.parameter == 'precipitation_1h_bg'):
+                added_hours = 1
+            else:
+                added_hours = 0
+            image_array_plot, quantity_plot_min, quantity_plot_max, timestamp_plot, mask_nodata_plot, nodata_plot, longitudes_plot, latitudes_plot = read(options.dynamic_nwc_data,added_hours)
+            for n in (range(0, image_array_plot.shape[0])):
+                outdir = "figures/fields/"
+                # PLOTTING AND SAVING TO FILE
+                title = options.parameter + " MNWC fc=+" + str(n+added_hours) + "h"
+                outfile = outdir + "field" + options.parameter + " MNWC_fc=+" + str(n) + "h.png"
+                diagnostics_functions.plot_imshow(image_array_plot[n,:,:],R_min,R_max,outfile,"jet",title)
+
+        # Plot extrapolated_data if it exists
+        if options.extrapolated_data!=None:
+            if (options.parameter == 'precipitation_1h_bg'):
+                added_hours = 1
+            else:
+                added_hours = 0
+            image_array_plot, quantity_plot_min, quantity_plot_max, timestamp_plot, mask_nodata_plot, nodata_plot, longitudes_plot, latitudes_plot = read(options.extrapolated_data)
+            for n in (range(0, image_array_plot.shape[0])):
+                outdir = "figures/fields/"
+                # PLOTTING AND SAVING TO FILE
+                title = options.parameter + " extrapolated_data fc=+" + str(n+added_hours) + "h"
+                outfile = outdir + "field" + options.parameter + " extrapolated_data_fc=+" + str(n) + "h.png"
+                diagnostics_functions.plot_imshow(image_array_plot[n,:,:],R_min,R_max,outfile,"jet",title)
+
+
+        # NOW PLOT DIAGNOSTICS FROM THE FIELDS
+
+        # TIME SERIES FROM THE FIELD MEAN
+        fc_lengths=np.arange(0,interpolated_advection.shape[0])
+        outdir = "figures/"
+        outfile = outdir + "Field_mean_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + ".png"
+        plt.plot(fc_lengths, np.mean(interpolated_advection,axis=(1,2)), linewidth=2.0, label="temperature")
+        title = "Field mean, " + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S")
+        plt.title(title)
+        plt.tight_layout(pad=0.)
+        # plt.xticks([])
+        # plt.yticks([])
+        plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
+        plt.close()
+
+        # JUMPINESS CHECKS
+        # PREVAILING ASSUMPTION: THE CHANGE IN INDIVIDUAL GRIDPOINTS IS VERY LINEAR
+
+        # RESULT ARRAYS
+        linear_change_boolean = np.ones(interpolated_advection.shape)
+        gp_abs_difference = np.ones(interpolated_advection.shape)
+        gp_mean_difference = np.ones(interpolated_advection.shape)
+        ratio_meandiff_absdiff = np.ones(interpolated_advection.shape)
+
+        # 0) PLOT image_array1 FIELDS
+        for n in (range(0, image_array1.shape[0])):
+            outdir = "figures/fields/"
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + "nwc_data=+" + str(n) + "h"
+            outfile = outdir + "field" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_nwc_data=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(image_array1[n,:,:],R_min,R_max,outfile,"jet",title)
+
+        # 0a) PLOT image_array2 FIELDS
+        if options.model_data!=None:
+            image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data,added_hours=0)
+            quantity2 = options.parameter
+            # nodata values are always taken from the model field. Presumably these are the same.
+            nodata = nodata2
+            for n in (range(0, image_array2.shape[0])):
+                outdir = "figures/fields/"
+                # PLOTTING AND SAVING TO FILE
+                title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + "fc_model=+" + str(n) + "h"
+                outfile = outdir + "field" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc_model=+" + str(n) + "h.png"
+                diagnostics_functions.plot_imshow(image_array2[n,:,:],R_min,R_max,outfile,"jet",title)
+
+        # 0b) PLOT DMO FIELDS
+        for n in (range(0, interpolated_advection.shape[0])):
+            outdir = "figures/fields/"
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + "fc=+" + str(n) + "h"
+            outfile = outdir + "field" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title)
+
+        # 0c) PLOT DMO FIELDS
+        for n in (range(0, interpolated_advection_uusi.shape[0])):
+            outdir = "figures/fields/"
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + "fcip=+" + str(n) + "h"
+            outfile = outdir + "field" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fcip=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(interpolated_advection_uusi[n,:,:],R_min,R_max,outfile,"jet",title)
+
+        # 0d) PLOT DMO FIELDS
+        for n in (range(0, interpolated_advection_uusi.shape[0])):
+            outdir = "figures/fields/"
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + "fc_minus_model=+" + str(n) + "h"
+            outfile = outdir + "field" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fcip_minus_model=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(interpolated_advection_uusi[n,:,:]-image_array2[n,:,:],-1,1,outfile,"jet",title)
+
+
+
+
+        # 1a) TRUE IS ASSIGNED TO THOSE TIME+LOCATION POINTS THAT HAVE PREVIOUS TIMESTEP VALUE LESS (MORE) AND NEXT TIMESTEP VALUE MORE (LESS) THAN THE CORRESPONDING VALUE. SO NO CHANGE IN THE SIGN OF THE DERIVATIVE.
+        for n in (range(1, 5)):
+            outdir = "figures/linear_change/"
+            gp_increased = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] > 0) & (interpolated_advection[(n+1),:,:] - interpolated_advection[n,:,:] > 0)
+            gp_reduced = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] < 0) & (interpolated_advection[(n+1),:,:] - interpolated_advection[n,:,:] < 0)
+            linear_change_boolean[n,:,:] = gp_reduced + gp_increased
+            gp_outside_minmax_range = np.max(np.maximum(np.maximum(0,(interpolated_advection[n,:,:]-np.maximum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+1),:,:]))),abs(np.minimum(0,(interpolated_advection[n,:,:]-np.minimum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+1),:,:]))))))
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n) + "h, " + str(round(np.mean(linear_change_boolean[n,:,:])*100,2)) + "% gridpoints is \n inside range " + str(n-1) + "h..." + str(n+1) + "h, outside range field max value " + str(round(gp_outside_minmax_range,2))
+            outfile = outdir + "linear_change_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(linear_change_boolean[n,:,:],0,1,outfile,"jet",title)
+
+        # 1b) TRUE IS ASSIGNED TO THOSE TIME+LOCATION POINTS THAT HAVE PREVIOUS TIMESTEP VALUE LESS (MORE) AND NEXT+1 TIMESTEP VALUE MORE (LESS) THAN THE CORRESPONDING VALUE. SO NO CHANGE IN THE SIGN OF THE DERIVATIVE.
+        for n in (range(1, 4)):
+            outdir = "figures/linear_change3h/"
+            gp_increased = ((interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:]) > 0) & ((interpolated_advection[(n+2),:,:] - interpolated_advection[n,:,:]) > 0)
+            gp_reduced = ((interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:]) < 0) & ((interpolated_advection[(n+2),:,:] - interpolated_advection[n,:,:]) < 0)
+            linear_change_boolean[n,:,:] = gp_reduced + gp_increased
+            gp_outside_minmax_range = np.max(np.maximum(np.maximum(0,(interpolated_advection[n,:,:]-np.maximum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+2),:,:]))),abs(np.minimum(0,(interpolated_advection[n,:,:]-np.minimum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+2),:,:]))))))
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n) + "h, " + str(round(np.mean(linear_change_boolean[n,:,:])*100,2)) + "% gridpoints is \n inside range " + str(n-1) + "h..." + str(n+2) + "h, outside range field max value " + str(round(gp_outside_minmax_range,2))
+            outfile = outdir + "linear_change_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(linear_change_boolean[n,:,:],0,1,outfile,"jet",title)
+
+        # 1c) TRUE IS ASSIGNED TO THOSE TIME+LOCATION POINTS THAT HAVE PREVIOUS TIMESTEP VALUE LESS (MORE) AND NEXT+2 TIMESTEP VALUE MORE (LESS) THAN THE CORRESPONDING VALUE. SO NO CHANGE IN THE SIGN OF THE DERIVATIVE.
+        for n in (range(1, 3)):
+            outdir = "figures/linear_change4h/"
+            gp_increased = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] > 0) & (interpolated_advection[(n+3),:,:] - interpolated_advection[n,:,:] > 0)
+            gp_reduced = (interpolated_advection[n,:,:] - interpolated_advection[(n-1),:,:] < 0) & (interpolated_advection[(n+3),:,:] - interpolated_advection[n,:,:] < 0)
+            linear_change_boolean[n,:,:] = gp_reduced + gp_increased
+            gp_outside_minmax_range = np.max(np.maximum(np.maximum(0,(interpolated_advection[n,:,:]-np.maximum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+3),:,:]))),abs(np.minimum(0,(interpolated_advection[n,:,:]-np.minimum(interpolated_advection[(n-1),:,:],interpolated_advection[(n+3),:,:]))))))
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n) + "h, " + str(round(np.mean(linear_change_boolean[n,:,:])*100,2)) + "% gridpoints is \n inside range " + str(n-1) + "h..." + str(n+3) + "h, outside range field max value " + str(round(gp_outside_minmax_range,2))
+            outfile = outdir + "linear_change_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(linear_change_boolean[n,:,:],0,1,outfile,"jet",title)
+
+
+        # ANALYSING "JUMPINESS"
+        for n in (range(1, 5)):
+            # 2) DIFFERENCE OF TIMESTEPS (n-1) AND (n+1)
+            gp_abs_difference[n,:,:] = abs(interpolated_advection[(n+1),:,:] - interpolated_advection[(n-1),:,:])
+            outdir = "figures/jumpiness_absdiff/"
+            title = options.parameter + " absdiff of " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n-1) + "h" + str(n+1) + "h \n field max value " + str(round(np.max(gp_abs_difference[n,:,:]),2))
+            outfile = outdir + "jumpiness_absdiff_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(gp_abs_difference[n,:,:],-5,5,outfile,"seismic",title)
+            # 3) DIFFERENCE FROM THE MEAN OF (n-1) AND (n+1)
+            gp_mean_difference[n,:,:] = abs(interpolated_advection[n,:,:] - ((interpolated_advection[(n+1),:,:] + interpolated_advection[(n-1),:,:])/2))
+            outdir = "figures/jumpiness_meandiff/"
+            title = options.parameter + " diff from " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n-1) + "h" + str(n+1) + "h_mean \n field max value " + str(round(np.max(gp_mean_difference[n,:,:]),2))
+            outfile = outdir + "jumpiness_meandiff_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(gp_mean_difference[n,:,:],-0.2,0.2,outfile,"seismic",title)
+            # 4) MEAN DIFF DIVIDED BY ABSDIFF
+            ratio_meandiff_absdiff = gp_mean_difference / gp_abs_difference
+            outdir = "figures/jumpiness_ratio/"
+            title = options.parameter + " meandiff / absdiff ratio % " + timestamp1[0].strftime("%Y%m%d%H%M%S") + " fc_" + str(n-1) + "h" + str(n+1) + "h \n field max value " + str(round(np.max(ratio_meandiff_absdiff[n,:,:]),2))
+            outfile = outdir + "jumpiness_ratio_" + options.parameter + timestamp1[0].strftime("%Y%m%d%H%M%S") + "_fc=+" + str(n) + "h.png"
+            diagnostics_functions.plot_imshow(ratio_meandiff_absdiff[n,:,:],0,2,outfile,"seismic",title)
+
     
 
 
@@ -702,6 +927,9 @@ if __name__ == '__main__':
     parser.add_argument('--farneback_params',
                         default='compute_advinterp.cfg',
                         help='location of farneback params configuration file')
+    parser.add_argument('--plot_diagnostics',
+                        default='no',
+                        help='If this option is set to 1, routine plots out several diagnostics to files.')
 
     options = parser.parse_args()
     main()

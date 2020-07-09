@@ -242,7 +242,9 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
     Predictability in hours. Forecast length "predictability" is completely model-based -field whereas (predictability-1) hours is a composite!
   seconds_between_steps: int
     How long should two timesteps differ to each other?
-  
+  sigmoid_steepness: float
+    Defines parameter for the weighting function
+
   Returns
   -------
   out : array

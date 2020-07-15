@@ -500,7 +500,7 @@ def main():
             added_hours = 0
         image_arrayx1, quantityx1_min, quantityx1_max, timestampx1, mask_nodatax1, nodatax1, longitudesx1, latitudesx1 = read(options.dynamic_nwc_data,added_hours)
         quantityx1 = options.parameter
-        # TEST PREC DATA DID NOT CONTAIN mnwc_tprate_full, so copy timestamps from timestamp2 (minus the first time step)
+        # Copy timestamps from timestamp2 (minus the first time step)
         if (options.parameter == 'precipitation_1h_bg'):
             timestampx1 = timestamp2[1:]
         
@@ -537,7 +537,7 @@ def main():
                 # Defining mins and max in all data
                 R_min_nwc = min(image_arrayx1.min(),image_arrayx3.min())
                 R_max_nwc = max(image_arrayx1.max(),image_arrayx3.max())
-                # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values!
+                # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values! Here predictability is len(timestampx2) and not len(timestampx2)+1! -> last timestep of image_arrayx2 recieves a weight 0! 
                 if (options.parameter == "precipitation_1h_bg"):
                    image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-3)
                 else:
@@ -554,7 +554,7 @@ def main():
         timestampx1 = timestampx2
 
         
-    # If (obsdata) (like LAPS) is available, put that as the first time step
+    # If (obsdata) (like LAPS) is available, set that as the first time step in the combined dataset of extrapolated_data/dynamic_nwc_data
     if 'image_array1' in locals():
         # If nwc/extrapolated data is available
         if 'image_arrayx1' in locals():
@@ -584,9 +584,10 @@ def main():
         else:
             raise ValueError("no obsdata or nwc data available! Cannot smooth anything!")
 
-    # If needed, fill up observation data array with model data (so that timestamp2 and timestamp1 will eventually be the same)
+    # If needed, fill up "obsfields" data array with model data (so that timestamp2 and timestamp1 will eventually be the same)
     # Find out obsdata indices that coincide with modeldata (None values indicate time steps that there is no obsdata available for those modeldata time steps)
     model_obs_indices = [timestamp1.index(x) if x in timestamp1 else None for x in timestamp2]
+    # If even a single forecast time index in model_data is missing from the obsfields data, fill it out with model data
     if (all(x!=None for x in model_obs_indices) == False):
         # Use modeldata as base data
         image_array_temp = np.copy(image_array2)
@@ -641,8 +642,6 @@ def main():
 #         #Blur
 #         image_array1_reshaped[n]=gaussian_filter(image_array1_reshaped[n], options.gaussian_filter_sigma)
 #     image_array1=image_array1_reshaped
-
-    # CALCULATING INTERPOLATED IMAGES FOR DIFFERENT PRODUCERS AND CALCULATING VERIF METRICS
 
 
     # Interpolate data in either analysis_fcst_smoothed or model_fcst_smoothed -mode
@@ -882,24 +881,24 @@ if __name__ == '__main__':
     #Parse commandline arguments
     parser = argparse.ArgumentParser(argument_default=None)
     parser.add_argument('--obs_data',
-                        help='Obs data, representing the first time step used in image morphing.')
+                        help='Observation data field or similar, used as 0h forecast')
     parser.add_argument('--model_data',
-                        help='Model data, from the analysis timestamp up until the end of the available 10-day forecast.')
+                        help='Model data field, towards which the nowcast is smoothed')
     parser.add_argument('--background_data',
-                        help='Background field data where obsdata is merged to for the forecast step t=0, so having the same timestamp as obs data.')
+                        help='Background data field for the 0h forecast where obsdata is spatially merged to')
     parser.add_argument('--dynamic_nwc_data',
-                        help='Dynamic nowcasting model data. This is smoothed to modeldata. If extrapolation data is provided, it is spatially smoothed to bgmodeldata')
+                        help='Dynamic nowcasting model data field, which is smoothed to modeldata. If extrapolated_data is provided, it is spatially smoothed with dynamic_nwc_data. First timestep of 0h should not be included in this data!')
     parser.add_argument('--extrapolated_data',
-                        help='Nowcasting model data acquired using extrapolation methods (like PPN)')
+                        help='Nowcasting model data field acquired using extrapolation methods (like PPN), which is smoothed to modeldata. If dynamic_nwc_data is provided, extrapolated_data is spatially smoothed with it. First timestep of 0h should not be included in this data!')
     parser.add_argument('--detectability_data',
                         default="testdata/radar_detectability_field_255_280.h5",
-                        help='Radar detectability field, which is used in spatial blending of obsdata and bgdata.')
+                        help='Radar detectability field, which is used in spatial blending of obsdata and bgdata')
     parser.add_argument('--output_data',
-                        help='Output file name for nowcast data.')
+                        help='Output file name for nowcast data field')
     parser.add_argument('--seconds_between_steps',
                         type=int,
                         default=3600,
-                        help='Seconds between interpolated steps.')
+                        help='Timestep of output data in seconds')
     parser.add_argument('--predictability',
                         type=int,
                         default='4',
@@ -908,7 +907,7 @@ if __name__ == '__main__':
                         help='Variable which is handled.')
     parser.add_argument('--mode',
                         default='analysis_fcst_smoothed',
-                        help='Either "verif", "analysis_fcst_smoothed" or "model_fcst_smoothed" mode. In verification mode, verification statistics are calculated from the blended forecasts. In forecast mode no.')
+                        help='Either "analysis_fcst_smoothed" or "model_fcst_smoothed" mode. In "analysis_fcst_smoothed" mode, nowcasts are interpolated between 0h (obs_data/background_data) and predictability hours (model_data). In "model_fcst_smoothed" mode, nowcasts are individually interpolated for each forecast length between dynamic_nwc_data/extrapolated/data and model_data and their corresponding forecasts')
     parser.add_argument('--gaussian_filter_sigma',
                         type=float,
                         default=0.5,
@@ -924,7 +923,7 @@ if __name__ == '__main__':
     parser.add_argument('--DBZH_min',
                         type=float,
                         default=10,
-                        help='Minimum DBZH for optical flow computations. Values below DBZH_min are clamped.')
+                        help='Minimum DBZH for optical flow computations. Values below DBZH_min are set to zero.')
     parser.add_argument('--DBZH_max', 
                         type=float,
                         default=45,
@@ -934,7 +933,7 @@ if __name__ == '__main__':
                         help='location of farneback params configuration file')
     parser.add_argument('--plot_diagnostics',
                         default='no',
-                        help='If this option is set to yes, routine plots out several diagnostics to files.')
+                        help='If this option is set to yes, program plots out several diagnostics to files.')
 
     options = parser.parse_args()
     main()

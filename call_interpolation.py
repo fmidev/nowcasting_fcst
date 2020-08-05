@@ -136,8 +136,12 @@ def read_grib(image_grib_file,added_hours):
             #print msg.keys()
             ni = msg["Ni"]
             nj = msg["Nj"]
-
-            forecast_time = datetime.datetime.strptime("%s%02d" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
+            #print(msg["dataDate"])
+            #print(msg["dataTime"])
+            #print(datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], msg["dataTime"]/100), "%Y%m%d/%H"))
+            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], msg["dataTime"]/100), "%Y%m%d/%H") + datetime.timedelta(hours=msg["forecastTime"])
+            # forecast_time = datetime.datetime.strptime("%s%02d" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
+            # print(forecast_time)
             dtime.append(forecast_time)
             tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
             latitudes.append(np.asarray(msg["latitudes"]).reshape(nj, ni))
@@ -406,13 +410,13 @@ def define_common_mask_for_fields(*args):
 def main():
 
 #    # For testing purposes set test datafiles
-#    options.obs_data = "testdata/latest/obs_tprate.grib2"
-#    options.model_data = "testdata/latest/fcst_tprate.grib2"
-#    options.background_data = "testdata/latest/mnwc_tprate.grib2"
-#    options.dynamic_nwc_data = "testdata/latest/mnwc_tprate_full.grib2"
-#    options.extrapolated_data = "testdata/latest/ppn_tprate.grib2"
+#    options.obs_data = None # "testdata/07/obs_tp.grib2"
+#    options.model_data = "testdata/07/fcst_tprate.grib2"
+#    options.background_data = "testdata/07/mnwc_tprate.grib2"
+#    options.dynamic_nwc_data = "testdata/07/mnwc_tprate_full.grib2"
+#    options.extrapolated_data = "testdata/07/ppn_tprate.grib2"
 #    options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#    options.output_data = "testdata/latest/output/smoothed_mnwc_edited.grib2"
+#    options.output_data = "testdata/07/output/smoothed_mnwc_edited.grib2"
 #    options.parameter = "precipitation_1h_bg"
 #    options.mode = "model_fcst_smoothed"
 #    options.predictability = 9
@@ -449,7 +453,8 @@ def main():
     # Model datafile needs to be given as an argument! This is obligatory, as obs/nwcdata is smoothed towards it!
     # Model data contains also the analysis time step!
     # ASSUMPTION USED IN THE REST OF THE CODE: model_data HAS ALWAYS ALL THE NEEDED TIME STEPS!
-    if options.model_data!=None:        
+    if options.model_data!=None:
+        # For accumulated model precipitation, add one hour to timestamp as it is read in as the beginning of the 1-hour period and not as the end of it
         if (options.parameter == 'precipitation_1h_bg'):
             added_hours = 1
         else:

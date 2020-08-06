@@ -410,13 +410,13 @@ def define_common_mask_for_fields(*args):
 def main():
 
 #    # For testing purposes set test datafiles
-#    options.obs_data = None # "testdata/07/obs_tp.grib2"
-#    options.model_data = "testdata/07/fcst_tprate.grib2"
-#    options.background_data = "testdata/07/mnwc_tprate.grib2"
-#    options.dynamic_nwc_data = "testdata/07/mnwc_tprate_full.grib2"
-#    options.extrapolated_data = "testdata/07/ppn_tprate.grib2"
+#    options.obs_data = None # "testdata/latest/obs_tp.grib2"
+#    options.model_data = "testdata/latest/fcst_tprate.grib2"
+#    options.background_data = "testdata/latest/mnwc_tprate.grib2"
+#    options.dynamic_nwc_data = "testdata/latest/mnwc_tprate_full.grib2"
+#    options.extrapolated_data = "testdata/latest/ppn_tprate.grib2"
 #    options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#    options.output_data = "testdata/07/output/smoothed_mnwc_edited.grib2"
+#    options.output_data = "testdata/latest/output/smoothed_mnwc_edited.grib2"
 #    options.parameter = "precipitation_1h_bg"
 #    options.mode = "model_fcst_smoothed"
 #    options.predictability = 9
@@ -544,7 +544,7 @@ def main():
                 R_max_nwc = max(image_arrayx1.max(),image_arrayx3.max())
                 # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values! Here predictability is len(timestampx2) and not len(timestampx2)+1! -> last timestep of image_arrayx2 recieves a weight 0! 
                 if (options.parameter == "precipitation_1h_bg"):
-                   image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-3)
+                   image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-4.5)
                 else:
                     raise ValueError("Only precipitation_1h_bg variable is supported by the code! Provide variable-dependent value for sigmoid_steepness! Revise also the bg mask used!")
             else:
@@ -653,7 +653,13 @@ def main():
     if (options.mode == "analysis_fcst_smoothed"):
         interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
     if (options.mode == "model_fcst_smoothed"):
-        interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-3.5)
+        interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
+
+
+    # Implementing QC-thresholds! Thede are not atm given as parameters to the program!
+    prec_max = 22
+    if (options.parameter == 'precipitation_1h_bg'):
+        interpolated_advection[np.where(interpolated_advection>prec_max)] = prec_max
 
         
     # Save interpolated field to a new file

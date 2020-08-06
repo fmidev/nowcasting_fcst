@@ -48,6 +48,7 @@ Parameter|Explanation|Obligatory|Default value
 ## Known issues, features and development ideas
 * "verif" mode (calculation of several verification metrics for all available producers, using past data) does not exist at the moment.
 * Input parameters {R_min, R_max, DBZH_min, DBZH_max} are only used at the subroutine read_HDF5()
+* QC threshold implementation in the very end of the main program is not complete. Only precipitation threshold is implemented, the value is manually updated to the code itself and not provided as an argument to the program. Also smoothing of the QC-limited field might be needed in case areas cut are very widespread, which is not included by at all at the moment.
 * Function read_nc has no kind of error checking of the data atm. The min/max values are taken from the raw data fields as provided. A named list for each parameter? Should here be some error checking based on plausible min/max values? missingvalue -checking already exist in the function read_nc.
 * Input parameter gaussian_filter_sigma is not used at the moment. It is also an ad-hoc constant value, whereas it should depend on the spatial variability difference of the two fields.
 * Program is very picky on the spatial representation of the input data. All the input data needs to have the same grid definition with similar gridpoints!

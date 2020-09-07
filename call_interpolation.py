@@ -410,16 +410,16 @@ def define_common_mask_for_fields(*args):
 def main():
 
 #    # For testing purposes set test datafiles
-#    options.obs_data = None # "testdata/latest/obs_tp.grib2"
-#    options.model_data = "testdata/latest/fcst_tprate.grib2"
-#    options.background_data = "testdata/latest/mnwc_tprate.grib2"
-#    options.dynamic_nwc_data = "testdata/latest/mnwc_tprate_full.grib2"
-#    options.extrapolated_data = "testdata/latest/ppn_tprate.grib2"
+#    options.obs_data = None # "testdata/12/obs_tp.grib2"
+#    options.model_data = "testdata/12/fcst_tprate.grib2"
+#    options.background_data = "testdata/12/mnwc_tprate.grib2"
+#    options.dynamic_nwc_data = "testdata/12/mnwc_tprate_full.grib2"
+#    options.extrapolated_data = "testdata/12/ppn_tprate.grib2"
 #    options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#    options.output_data = "testdata/latest/output/smoothed_mnwc_edited.grib2"
+#    options.output_data = "testdata/12/output/interpolated_tprate.grib2"
 #    options.parameter = "precipitation_1h_bg"
 #    options.mode = "model_fcst_smoothed"
-#    options.predictability = 9
+#    options.predictability = 8
     
 #    # For testing purposes set test datafiles
 #    options.obs_data = None
@@ -428,7 +428,7 @@ def main():
 #    options.dynamic_nwc_data = "testdata/TCC/mnwc.grib2"
 #    options.extrapolated_data = None
 #    options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#    options.output_data = "testdata/TCC/output/smoothed_mnwc_edited.grib2"
+#    options.output_data = "testdata/TCC/output/interpolated_tprate.grib2"
 #    options.parameter = "total_cloud_cover"
 #    options.mode = "model_fcst_smoothed"
 #    options.predictability = 9
@@ -497,7 +497,7 @@ def main():
         mask_nodata1 = mask_nodata3
         timestamp1 = timestamp3
         
-    # Loading in dynamic_nwc_data. First value in data is the first forecast step, not analysis!
+    # Loading in dynamic_nwc_data. This can (or not) include the analysis step!
     if options.dynamic_nwc_data!=None:
         if (options.parameter == 'precipitation_1h_bg'):
             added_hours = 1
@@ -505,17 +505,25 @@ def main():
             added_hours = 0
         image_arrayx1, quantityx1_min, quantityx1_max, timestampx1, mask_nodatax1, nodatax1, longitudesx1, latitudesx1 = read(options.dynamic_nwc_data,added_hours)
         quantityx1 = options.parameter
-        # Copy timestamps from timestamp2 (minus the first time step)
-        if (options.parameter == 'precipitation_1h_bg'):
-            timestampx1 = timestamp2[1:]
+        # # Remove analysis timestamp from dynamic_nwc_data if it is there! (if previous analysis hour data is used!)
+        # # if (options.parameter == 'precipitation_1h_bg'):
+        # if (timestamp2[0] in timestampx1):
+        #     if timestampx1.index(timestamp2[0]) == 0:
+        #         image_arrayx1 = image_arrayx1[1:]
+        #         timestampx1 = timestampx1[1:]
+        #         mask_nodatax1 = mask_nodatax1[1:]
         
     # Loading in extrapolated_data. Currently supports only PPN data, where first value in data is the the 1h forecast, not analysis!
     if options.extrapolated_data!=None:
-        image_arrayx2, quantityx2_min, quantityx2_max, timestampx2, mask_nodatax2, nodatax2, longitudesx2, latitudesx2 = read(options.extrapolated_data)
-        quantityx2 = options.parameter
-        # For 1h precipitation nowcasts, copy timestamps from timestamp2 (in case PPN timestamps are not properly parsed). Also, this run only supports fixed PPN runtimes (xx:00)
         if (options.parameter == 'precipitation_1h_bg'):
-            timestampx2 = timestamp2[1:(len(timestampx2)+1)]
+            added_hours = 1
+        else:
+            added_hours = 0
+        image_arrayx2, quantityx2_min, quantityx2_max, timestampx2, mask_nodatax2, nodatax2, longitudesx2, latitudesx2 = read(options.extrapolated_data,added_hours)
+        quantityx2 = options.parameter
+        # # For 1h precipitation nowcasts, copy timestamps from timestamp2 (in case PPN timestamps are not properly parsed). Also, this run only supports fixed PPN runtimes (xx:00)
+        # if (options.parameter == 'precipitation_1h_bg'):
+        #     timestampx2 = timestamp2[1:(len(timestampx2)+1)]
         
     # If both extrapolated_data and dynamic_nwc_data are read in, combine them spatially by using mask
     if 'image_arrayx1' in locals() and 'image_arrayx2' in locals():
@@ -523,6 +531,7 @@ def main():
             # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
             dynamic_nwc_data_common_indices = [timestampx1.index(x) if x in timestampx1 else None for x in timestampx2]
         if len(dynamic_nwc_data_common_indices)>0:
+            # Spatially combine dynamic_nwc forecast to image_arrayx3 (initialise the array here)
             image_arrayx3 = np.copy(image_arrayx1)
             # Combine data for each forecast length
             for common_index in range(0,len(dynamic_nwc_data_common_indices)):
@@ -558,8 +567,7 @@ def main():
         mask_nodatax1 = mask_nodatax2
         timestampx1 = timestampx2
 
-        
-    # If (obsdata) (like LAPS) is available, set that as the first time step in the combined dataset of extrapolated_data/dynamic_nwc_data
+    # If analysis time step from both/and (obs_data/background_data) is available, set that as the first time step in the combined dataset of extrapolated_data/dynamic_nwc_data
     if 'image_array1' in locals():
         # If nwc/extrapolated data is available
         if 'image_arrayx1' in locals():
@@ -574,7 +582,7 @@ def main():
                     image_array1 = np.append(image_array1,image_arrayx1,axis=0)
                     timestamp1.extend(timestampx1)
                 # If image_arrayx1 contains also analysis step, replace first time step in image_arrayx1 with obsdata
-                if nwc_model_indices[0]==0 and obs_model_indices==0 and len(nwc_model_indices>1):
+                if nwc_model_indices[0]==0 and obs_model_indices==0 and len(nwc_model_indices)>1:
                     image_array1 = np.append(image_array1,image_arrayx1[1:,:,:],axis=0)
                     timestamp1.extend(timestampx1[1:])
                 mask_nodata1 = define_common_mask_for_fields(mask_nodata1,mask_nodatax1)

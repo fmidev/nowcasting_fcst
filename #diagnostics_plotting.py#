@@ -12,6 +12,9 @@ import time
 from eccodes import *
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+import cartopy.crs as ccrs
+import cartopy.feature as cf
+
 # from scipy.ndimage.filters import gaussian_filter
 # from scipy.ndimage.morphology import distance_transform_edt
 import diagnostics_functions

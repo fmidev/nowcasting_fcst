@@ -1,8 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
-import cartopy.crs as ccrs
-import cartopy.feature as cf
+import cartopy
 
 
 ########### DEBUGGING FUNCTIONS #############
@@ -25,13 +24,14 @@ def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
 
     grid_lon, grid_lat = [longitudes, latitudes]
     
-    proj = ccrs.LambertConformal(central_latitude = int(np.mean(latitudes)), 
+    proj = cartopy.crs.LambertConformal(central_latitude = int(np.mean(latitudes)), 
                              central_longitude = int(np.mean(longitudes)), 
                              standard_parallels = (25, 25))
 
     ax = plt.axes(projection = proj)
-    x, y = ax(*[grid_lon, grid_lat])
-    ax.pcolormesh(x, y, temps, shading='flat', vmin=vmin, vmax=vmax, cmap=cmap, transform = ccrs.PlateCarree())
+    # x, y = ax(*[grid_lon, grid_lat])
+    x, y = [grid_lon, grid_lat]
+    ax.pcolormesh(x, y, temps, shading='auto', vmin=vmin, vmax=vmax, cmap=cmap, transform = cartopy.crs.PlateCarree())
     ax.coastlines('50m')
     ax.add_feature(cartopy.feature.OCEAN)
     ax.add_feature(cartopy.feature.LAND, edgecolor='black')

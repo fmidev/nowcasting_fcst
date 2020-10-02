@@ -1,9 +1,25 @@
+# -*- coding: utf-8 -*-
+import interpolate_fcst
+import h5py
+import hiisi
 import numpy as np
+import argparse
+import datetime
+import ConfigParser
+import netCDF4
+import sys
+import os
+import time
+import cv2
+from eccodes import *
+from scipy.misc import imresize
+from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage.morphology import distance_transform_edt
 import matplotlib.pyplot as plt
+# import pygrib
 import matplotlib.colors as colors
-import cartopy.crs as ccrs
-import cartopy.feature as cf
-
+from mpl_toolkits.basemap import Basemap
+from mpl_toolkits.basemap import shiftgrid
 
 ########### DEBUGGING FUNCTIONS #############
 
@@ -18,49 +34,25 @@ def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
     plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
     plt.close()
 
-
-
-    
 def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
-
+    # Transform longitudes defined in 0...360 to -180...180
+    longitudes[longitudes>180] = (180-longitudes[(longitudes>180)]%180)
     grid_lon, grid_lat = [longitudes, latitudes]
+    m = Basemap(projection='cyl', llcrnrlon=longitudes.min(),urcrnrlon=longitudes.max(),llcrnrlat=latitudes.min(),urcrnrlat=latitudes.max(),resolution='c')
+    x, y = m(*[grid_lon, grid_lat])
+    m.pcolormesh(x,y,temps,shading='flat',cmap=cmap,vmin=vmin,vmax=vmax)
+    m.colorbar(location='right')
+    m.drawcoastlines()
+    m.drawmapboundary()
+    m.drawparallels(np.arange(-90.,120.,10.),labels=[1,0,0,0])
+    m.drawmeridians(np.arange(-180.,180.,10.),labels=[0,0,0,1])
     
-    proj = ccrs.LambertConformal(central_latitude = int(np.mean(latitudes)), 
-                             central_longitude = int(np.mean(longitudes)), 
-                             standard_parallels = (25, 25))
-
-    ax = plt.axes(projection = proj)
-    x, y = ax(*[grid_lon, grid_lat])
-    ax.pcolormesh(x, y, temps, shading='flat', vmin=vmin, vmax=vmax, cmap=cmap, transform = ccrs.PlateCarree())
-    ax.coastlines('50m')
-    ax.add_feature(cartopy.feature.OCEAN)
-    ax.add_feature(cartopy.feature.LAND, edgecolor='black')
-    ax.add_feature(cartopy.feature.LAKES, edgecolor='black')
-    ax.add_feature(cartopy.feature.RIVERS)
-    ax.gridlines()
-    ax.set_title(title)
-    # plt.show()
-
-    # # Transform longitudes defined in 0...360 to -180...180
-    # longitudes[longitudes>180] = (180-longitudes[(longitudes>180)]%180)
-    # grid_lon, grid_lat = [longitudes, latitudes]
-    # m = Basemap(projection='cyl', llcrnrlon=longitudes.min(),urcrnrlon=longitudes.max(),llcrnrlat=latitudes.min(),urcrnrlat=latitudes.max(),resolution='c')
-    # x, y = m(*[grid_lon, grid_lat])
-    # m.pcolormesh(x,y,temps,shading='flat',cmap=cmap,vmin=vmin,vmax=vmax)
-    # m.colorbar(location='right')
-    # m.drawcoastlines()
-    # m.drawmapboundary()
-    # m.drawparallels(np.arange(-90.,120.,10.),labels=[1,0,0,0])
-    # m.drawmeridians(np.arange(-180.,180.,10.),labels=[0,0,0,1])
-    
-    # plt.title(title)
-    # plt.tight_layout(pad=0.)
+    plt.title(title)
+    plt.tight_layout(pad=0.)
     # plt.xticks([])
     # plt.yticks([])
     plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
     plt.close()
-
-    
 
     
 def plot_only_colorbar(vmin,vmax,units,outfile,cmap):
@@ -82,4 +74,11 @@ def plot_verif_scores(fc_lengths,verif_scores,labels,outfile,title,y_ax_title):
     plt.ylabel(y_ax_title)
     plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
     plt.close()
+
+
+
+
+
+
+
 

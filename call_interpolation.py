@@ -455,13 +455,21 @@ def main():
         quantity2 = options.parameter
         # nodata values are always taken from the model field. Presumably these are the same.
         nodata = nodata2
+        # Model data is obligatory for this program!
+        if (np.sum((image_array2 != nodata2) & (image_array2 != None))==0):
+            raise ValueError("Model datafile contains only missing data!")
+            del (image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2)
     else:
         raise NameError("Model datafile needs to be given as an argument!")
-
+    
     # Read in observation data (Time stamp is analysis time!)
     if options.obs_data!=None:
         image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obs_data,added_hours=0)
         quantity1 = options.parameter
+        # If missing, remove variables and print warning text
+        if (np.sum((image_array1 != nodata1) & (image_array1 != None))==0):
+            print("options.obs_data contains only missing data!")
+            del (image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1)
 
     # If observation data is supplemented with background data (to which Finnish obsdata is spatially smoothed), read it in, create a spatial mask and combine these two fields
     if options.background_data!=None:
@@ -471,6 +479,11 @@ def main():
             added_hours = 0
         image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3, longitudes3, latitudes3 = read(options.background_data,added_hours)
         quantity3 = options.parameter
+        # If missing, remove variables and print warning text
+        if (np.sum((image_array3 != nodata3) & (image_array3 != None))==0):
+            print("options.background_data contains only missing data!")
+            del (image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3, longitudes3, latitudes3)
+
 
     # Creating spatial composite for the first time step from obs and background data
     if 'image_array1' in locals() and 'image_array3' in locals():
@@ -497,6 +510,10 @@ def main():
             added_hours = 0
         image_arrayx1, quantityx1_min, quantityx1_max, timestampx1, mask_nodatax1, nodatax1, longitudesx1, latitudesx1 = read(options.dynamic_nwc_data,added_hours)
         quantityx1 = options.parameter
+        # If missing, remove variables and print warning text
+        if (np.sum((image_arrayx1 != nodatax1) & (image_arrayx1 != None))==0):
+            print("options.dynamic_nwc_data contains only missing data!")
+            del (image_arrayx1, quantityx1_min, quantityx1_max, timestampx1, mask_nodatax1, nodatax1, longitudesx1, latitudesx1)
         # # Remove analysis timestamp from dynamic_nwc_data if it is there! (if previous analysis hour data is used!)
         # # if (options.parameter == 'precipitation_1h_bg'):
         # if (timestamp2[0] in timestampx1):
@@ -513,6 +530,10 @@ def main():
             added_hours = 0
         image_arrayx2, quantityx2_min, quantityx2_max, timestampx2, mask_nodatax2, nodatax2, longitudesx2, latitudesx2 = read(options.extrapolated_data,added_hours)
         quantityx2 = options.parameter
+        # If missing, remove variables and print warning text
+        if (np.sum((image_arrayx2 != nodatax2) & (image_arrayx2 != None))==0):
+            print("options.extrapolated_data contains only missing data!")
+            del (image_arrayx2, quantityx2_min, quantityx2_max, timestampx2, mask_nodatax2, nodatax2, longitudesx2, latitudesx2)
         # # For 1h precipitation nowcasts, copy timestamps from timestamp2 (in case PPN timestamps are not properly parsed). Also, this run only supports fixed PPN runtimes (xx:00)
         # if (options.parameter == 'precipitation_1h_bg'):
         #     timestampx2 = timestamp2[1:(len(timestampx2)+1)]

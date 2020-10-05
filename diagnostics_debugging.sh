@@ -25,4 +25,4 @@ python3 ./call_interpolation.py --model_data testdata/latest/fcst_cc.grib2 --dyn
 python3 ./call_interpolation.py --model_data testdata/latest/fcst_tprate.grib2 --background_data testdata/latest/mnwc_tprate.grib2 --dynamic_nwc_data testdata/latest/mnwc_tprate_full.grib2 --extrapolated_data testdata/latest/ppn_tprate.grib2 --detectability_data testdata/radar_detectability_field_255_280.h5 --output_data testdata/latest/output/interpolated_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 8 --plot_diagnostics "yes"
 
 cd testdata/latest/
-#find . -name '*.grib2' -delete
+find . -name '*.grib2' -delete

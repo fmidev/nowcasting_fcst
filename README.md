@@ -6,16 +6,15 @@ jussi.ylhaisi@fmi.fi
 tuuli.perttula@fmi.fi
 
 ## Usage
-Code is written in Python 2.7 and heavily uses eccodes Python bindings. The program can be run in a separate container. The needed library dependencies (but not all!) are listed in the file requirements.txt.
+Code is written in Python 3 and heavily uses eccodes Python bindings. The program can be run in a separate container. The needed library dependencies are listed in the file requirements.txt.
 
 ### Example runs
 ```console
-python2 call_interpolation.py --model_data testdata/latest/fcst_tprate.grib2 --background_data testdata/latest/mnwc_tprate.grib2 --dynamic_nwc_data testdata/latest/mnwc_tprate_full.grib2 --extrapolated_data testdata/latest/ppn_tprate.grib2 --detectability_data testdata/radar_detectability_field_255_280.h5 --output_data testdata/latest/output/smoothed_mnwc_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 9
-python2 call_interpolation.py --model_data testdata/latest/fcst_cc.grib2 --dynamic_nwc_data testdata/latest/mnwc_cc.grib2 --output_data testdata/latest/output/smoothed_mnwc_TCC.grib2 --parameter total_cloud_cover --mode model_fcst_smoothed --predictability 9
-python2 call_interpolation.py --obs_data testdata/latest/obs_2t.grib2 --model_data testdata/latest/fcst_2t.grib2 --output_data testdata/latest/output/interpolated_2t.grib2 --parameter Temperature --mode analysis_fcst_smoothed --predictability 4
-python2 call_interpolation.py --obs_data testdata/latest/obs_2r.grib2 --model_data testdata/latest/fcst_2r.grib2 --output_data testdata/latest/output/interpolated_2r.grib2 --parameter Dewpoint --mode analysis_fcst_smoothed --predictability 4
-python2 call_interpolation.py --obs_data testdata/latest/obs_msl.grib2 --model_data testdata/latest/fcst_msl.grib2 --output_data testdata/latest/output/interpolated_msl.grib2 --parameter msl --mode analysis_fcst_smoothed --predictability 4
-python2 call_interpolation.py --obs_data testdata/latest/obs_10si.grib2 --model_data testdata/latest/fcst_10si.grib2 --output_data testdata/latest/output/interpolated_10si.grib2 --parameter wind10m --mode analysis_fcst_smoothed --predictability 4
+python3 call_interpolation.py --model_data testdata/latest/fcst_tprate.grib2 --background_data testdata/latest/mnwc_tprate.grib2 --dynamic_nwc_data testdata/latest/mnwc_tprate_full.grib2 --extrapolated_data testdata/latest/ppn_tprate.grib2 --detectability_data testdata/radar_detectability_field_255_280.h5 --output_data testdata/latest/output/smoothed_mnwc_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 9
+python3 call_interpolation.py --model_data testdata/latest/fcst_cc.grib2 --dynamic_nwc_data testdata/latest/mnwc_cc.grib2 --output_data testdata/latest/output/smoothed_mnwc_TCC.grib2 --parameter total_cloud_cover --mode model_fcst_smoothed --predictability 9
+python3 call_interpolation.py --ynamic_nwc_data testdata/latest/mnwc_2t.grib2 --model_data testdata/latest/fcst_2t.grib2 --output_data testdata/latest/output/interpolated_2t.grib2 --parameter Temperature --mode analysis_fcst_smoothed --predictability 4
+python3 call_interpolation.py --dynamic_nwc_data testdata/latest/mnwc_2r.grib2 --model_data testdata/latest/fcst_2r.grib2 --output_data testdata/latest/output/interpolated_2r.grib2 --parameter Dewpoint --mode analysis_fcst_smoothed --predictability 4
+python3 call_interpolation.py --dynamic_nwc_data testdata/latest/mnwc_10si.grib2 --model_data testdata/latest/fcst_10si.grib2 --output_data testdata/latest/output/interpolated_10si.grib2 --parameter wind10m --mode analysis_fcst_smoothed --predictability 4
 ```
 
 ### Input parameters

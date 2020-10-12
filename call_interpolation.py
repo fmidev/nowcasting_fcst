@@ -156,8 +156,13 @@ def read_grib(image_grib_file,added_hours):
     nodata = 9999
 
     mask_nodata = np.ma.masked_where(temps == nodata,temps)
-    temps_min= temps[np.where(~np.ma.getmask(mask_nodata))].min()
-    temps_max= temps[np.where(~np.ma.getmask(mask_nodata))].max()
+    if len(temps[np.where(~np.ma.getmask(mask_nodata))])>0:
+        temps_min = temps[np.where(~np.ma.getmask(mask_nodata))].min()
+        temps_max = temps[np.where(~np.ma.getmask(mask_nodata))].max()
+    else:
+        print("input " + image_grib_file + " contains only missing data!")
+        temps_min = nodata
+        temps_max = nodata
     if type(dtime) == list:
         dtime = [(i+datetime.timedelta(hours=added_hours)) for i in dtime]
     else:
@@ -403,27 +408,28 @@ def main():
 
 #     # For testing purposes set test datafiles
 #     options.obs_data = None # "testdata/latest/obs_tp.grib2"
-#     options.model_data = "testdata/latest/fcst_tprate.grib2"
-#     options.background_data = "testdata/latest/mnwc_tprate.grib2"
-#     options.dynamic_nwc_data = "testdata/latest/mnwc_tprate_full.grib2"
-#     options.extrapolated_data = "testdata/latest/ppn_tprate.grib2"
+#     options.model_data = "testdata/12/fcst_tprate.grib2"
+#     options.background_data = "testdata/12/mnwc_tprate.grib2"
+#     options.dynamic_nwc_data = "testdata/12/mnwc_tprate_full.grib2"
+#     options.extrapolated_data = "testdata/12/ppn_tprate.grib2"
 #     options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#     options.output_data = "testdata/latest/output/interpolated_tprate.grib2"
+#     options.output_data = "testdata/12/output/interpolated_tprate.grib2"
 #     options.parameter = "precipitation_1h_bg"
 #     options.mode = "model_fcst_smoothed"
 #     options.predictability = 8
+
+#     # For testing purposes set test datafiles
+#     options.obs_data = None # "testdata/latest/obs_tp.grib2"
+#     options.model_data = "testdata/12/fcst_cc.grib2"
+#     options.background_data = "testdata/12/mnwc_cc.grib2"
+#     options.dynamic_nwc_data = "testdata/12/mnwc_cc.grib2"
+#     options.extrapolated_data = None #"testdata/12/ppn_tprate.grib2"
+#     options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
+#     options.output_data = "testdata/12/output/interpolated_cc.grib2"
+#     options.parameter = "total_cloud_cover"
+#     options.mode = "model_fcst_smoothed"
+#     options.predictability = 8
     
-#    # For testing purposes set test datafiles
-#    options.obs_data = None
-#    options.model_data = "testdata/TCC/smartmet.grib2"
-#    options.background_data = None
-#    options.dynamic_nwc_data = "testdata/TCC/mnwc.grib2"
-#    options.extrapolated_data = None
-#    options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#    options.output_data = "testdata/TCC/output/interpolated_tprate.grib2"
-#    options.parameter = "total_cloud_cover"
-#    options.mode = "model_fcst_smoothed"
-#    options.predictability = 9
 
     
     

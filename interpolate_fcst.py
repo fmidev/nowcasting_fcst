@@ -57,18 +57,26 @@ def linear(obsfields, modelfields, mask_nodata, predictability, seconds_between_
   R1 = obsfields[0,:,:]
   R2 = modelfields[predictability,:,:]
   n_interp_frames = predictability*3600/seconds_between_steps - 1 # predictability is defined in hours
-  
-
-  if R1.shape != R2.shape:
-    raise ValueError("R1 and R2 have different shapes")
-  
   tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
   
-  # Initializing the result list with the analysis field
+  # Initializing the result list with the modelfields.shape and obsfields[0] data
   shapes = list(modelfields.shape)
   shapes[0] = predictability+1
   R_interp = ones(shapes)
   R_interp[0,:,:] = R1
+
+  if R1.shape != R2.shape:
+    raise ValueError("R1 and R2 have different shapes")
+
+  if (np.sum(R1!=missingval)==0) | (np.sum(R2!=missingval)==0):
+    print("either data field used for interpolation contains only missing values! Cannot interpolate and replacing intermediate timesteps with modelfield values!")
+    R_interp[1:,:,:] = modelfields[1:,:,:]
+    # Masking in the previous step does not take into account that missing values can actually spread and dilute to actual field. Therefore appylying a simple check to remove spurious values from fields, based on absolute maximum/minimum values in either field.
+    R_interp[R_interp>(R_max*1.02)] = missingval
+    R_interp[R_interp<(R_min*0.98)] = missingval
+
+    return R_interp
+  
   for tw in tws:
     
     # MASK1  = logical_and(isfinite(R1), R1 != missingval)
@@ -88,6 +96,7 @@ def linear(obsfields, modelfields, mask_nodata, predictability, seconds_between_
   
   # To analysis and interpolated images, the remaining model fields are added. If the argument "seconds_between_steps" is in even hours the result list will have the same length as input argument "modelfields"
   R_interp[predictability:,:,:] = modelfields[predictability:,:,:]
+  
   return R_interp
 
 
@@ -150,8 +159,23 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   R1 = obsfields[0,:,:]
   R2 = modelfields[predictability,:,:]
   n_interp_frames = predictability*3600/seconds_between_steps - 1 # predictability is defined in hours
-  
+  tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
 
+  # Initializing the result list with the modelfields.shape and obsfields[0] data
+  shapes = list(modelfields.shape)
+  R_interp = ones(shapes)
+  R_interp[0,:,:] = R1
+
+  if (np.sum(R1!=missingval)==0) | (np.sum(R2!=missingval)==0):
+    print("either data field used for interpolation contains only missing values! Cannot interpolate and replacing intermediate timesteps with modelfield values!")
+    R_interp[1:,:,:] = modelfields[1:,:,:]
+    # Masking in the previous step does not take into account that missing values can actually spread and dilute to actual field. Therefore appylying a simple check to remove spurious values from fields, based on absolute maximum/minimum values in either field.
+    R_interp[R_interp>(R_max*1.02)] = missingval
+    R_interp[R_interp<(R_min*0.98)] = missingval
+    
+    return R_interp
+
+  
   if R1.shape != R2.shape:
     raise ValueError("R1 and R2 have different shapes")
   
@@ -168,13 +192,7 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   else:
     VF = cv2.calcOpticalFlowFarneback(R1_f, R2_f, None, *farneback_params)
     VB = cv2.calcOpticalFlowFarneback(R2_f, R1_f, None, *farneback_params)
-  
-  tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
-  
-  # Initializing the result list with the analysis field
-  shapes = list(modelfields.shape)
-  R_interp = ones(shapes)
-  R_interp[0,:,:] = R1
+    
   # For actual interpolation, original vectors V1 and V2 are used!
   for tw in tws:
     R1_warped = cv2.remap(R1, W-tw*VF,       None, cv2.INTER_LINEAR)
@@ -199,7 +217,7 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   # Masking in the previous step does not take into account that missing values can actually spread and dilute to actual field. Therefore appylying a simple check to remove spurious values from fields, based on absolute maximum/minimum values in either field.
   R_interp[R_interp>(R_max*1.02)] = missingval
   R_interp[R_interp<(R_min*0.98)] = missingval
-
+  
   return R_interp
 
 
@@ -262,8 +280,7 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
   # tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
   tws = sigmoid_array(np.linspace(sigmoid_steepness,0,n_interp_frames))/0.5
 
-
-  # Initializing the result list with the modelfields
+  # Initializing the result list with the modelfields.shape and obsfield[0] data
   shapes = list(modelfields.shape)
   R_interp = np.copy(modelfields)
   R_interp[0,:,:] = obsfields[0,:,:]
@@ -272,8 +289,17 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
       R1 = obsfields[fcst_length,:,:]
       R2 = modelfields[fcst_length,:,:]
 
+      # Using only one time step
+      tw=tws[all_fcst_lengths.index(fcst_length)]
+
       if R1.shape != R2.shape:
         raise ValueError("R1 and R2 have different shapes")
+
+      if (np.sum(R1!=missingval)==0) | (np.sum(R2!=missingval)==0):
+        print("either data field for forecast length " + str(fcst_length) + " contains only missing values!")
+        R_interp[(int(((tws==tw).nonzero())[0])+1),:,:] = R2
+        continue
+        
 
       X,Y = meshgrid(arange(R1.shape[1]), arange(R1.shape[0]))
       W = dstack([X, Y]).astype(float32)
@@ -288,9 +314,6 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
       else:
         VF = cv2.calcOpticalFlowFarneback(R1_f, R2_f, None, *farneback_params)
         VB = cv2.calcOpticalFlowFarneback(R2_f, R1_f, None, *farneback_params)
-
-      # Using only one time step
-      tw=tws[all_fcst_lengths.index(fcst_length)]
       
       # For actual interpolation, original vectors V1 and V2 are used!
       R1_warped = cv2.remap(R1, W-tw*VF,       None, cv2.INTER_LINEAR)

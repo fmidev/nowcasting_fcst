@@ -292,6 +292,7 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     with GribFile(image_grib_file) as grib:
         i=-1
         for msg in grib:
+            msg["bitsPerValue"] = 24
             msg["generatingProcessIdentifier"] = 202
             msg["centre"] = 86
             msg["bitmapPresent"] = True
@@ -406,17 +407,29 @@ def define_common_mask_for_fields(*args):
 
 def main():
 
-#     # For testing purposes set test datafiles
-#     options.obs_data = None # "testdata/latest/obs_tp.grib2"
-#     options.model_data = "testdata/12/fcst_tprate.grib2"
-#     options.background_data = "testdata/12/mnwc_tprate.grib2"
-#     options.dynamic_nwc_data = "testdata/12/mnwc_tprate_full.grib2"
-#     options.extrapolated_data = "testdata/12/ppn_tprate.grib2"
-#     options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
-#     options.output_data = "testdata/12/output/interpolated_tprate.grib2"
-#     options.parameter = "precipitation_1h_bg"
-#     options.mode = "model_fcst_smoothed"
-#     options.predictability = 8
+    # # For testing purposes set test datafiles
+    # options.obs_data = None # "testdata/latest/obs_tp.grib2"
+    # options.model_data = "testdata/14/fcst_tprate.grib2"
+    # options.background_data = "testdata/14/mnwc_tprate.grib2"
+    # options.dynamic_nwc_data = "testdata/14/mnwc_tprate_full.grib2"
+    # options.extrapolated_data = "testdata/14/ppn_tprate.grib2"
+    # options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
+    # options.output_data = "testdata/14/output/interpolated_tprate.grib2"
+    # options.parameter = "precipitation_1h_bg"
+    # options.mode = "model_fcst_smoothed"
+    # options.predictability = 8
+
+    # # For testing purposes set test datafiles
+    # options.obs_data = None # "testdata/latest/obs_tp.grib2"
+    # options.model_data = "testdata/14/fcst_2r.grib2"
+    # options.background_data = None #"testdata/14/mnwc_tprate.grib2"
+    # options.dynamic_nwc_data = "testdata/14/mnwc_2r.grib2"
+    # options.extrapolated_data = None #testdata/14/ppn_tprate.grib2"
+    # options.detectability_data = "testdata/radar_detectability_field_255_280.h5"
+    # options.output_data = "testdata/14/output/interpolated_2r.grib2"
+    # options.parameter = "2r"
+    # options.mode = "model_fcst_smoothed"
+    # options.predictability = 4
 
 #     # For testing purposes set test datafiles
 #     options.obs_data = None # "testdata/latest/obs_tp.grib2"

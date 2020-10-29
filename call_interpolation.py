@@ -683,10 +683,16 @@ def main():
         interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
 
 
-    # Implementing QC-thresholds! Thede are not atm given as parameters to the program!
+    # Implementing QC-thresholds! They are not atm given as parameters to the program!
     prec_max = 22
     if (options.parameter == 'precipitation_1h_bg'):
         interpolated_advection[np.where(interpolated_advection>prec_max)] = prec_max
+    CC_max = 1
+    if (options.parameter == 'total_cloud_cover'):
+        interpolated_advection[np.where(interpolated_advection>CC_max)] = CC_max
+    RH_max = 100
+    if (options.parameter == '2r'):
+        interpolated_advection[np.where(interpolated_advection>RH_max)] = RH_max
 
         
     # Save interpolated field to a new file
@@ -945,7 +951,7 @@ if __name__ == '__main__':
     parser.add_argument('--parameter',
                         help='Variable which is handled.')
     parser.add_argument('--mode',
-                        default='analysis_fcst_smoothed',
+                        default='model_fcst_smoothed',
                         help='Either "analysis_fcst_smoothed" or "model_fcst_smoothed" mode. In "analysis_fcst_smoothed" mode, nowcasts are interpolated between 0h (obs_data/background_data) and predictability hours (model_data). In "model_fcst_smoothed" mode, nowcasts are individually interpolated for each forecast length between dynamic_nwc_data/extrapolated/data and model_data and their corresponding forecasts')
     parser.add_argument('--gaussian_filter_sigma',
                         type=float,

@@ -8,6 +8,20 @@ tuuli.perttula@fmi.fi
 ## Usage
 Code is written in Python 3 and heavily uses eccodes Python bindings. The program can be run in a separate container. The needed library dependencies are listed in the file requirements.txt.
 
+## Included files
+* **Dockerfile** Includes description on the Docker image used at Openshift
+* **LICENSE.txt** MIT license
+* **README.md** File containing documentation
+* **call_interpolation.py** Main program where the interpolation is done at
+* **compute_advinterp.cfg** Configuration parameters for the OpenCV interpolation
+* **diagnostics_debugging.sh** A script that retrieves the latest input data (using testdata/latest/retrieve_script.sh), calls the program using operative commands and prints out diagnostics plots to figures/
+* **diagnostics_debugging_hour.sh** A script that calls the program using operative commands (using input data from the directory testdata/$HOD) and prints out diagnostics plots to figures/
+* **diagnostics_functions.py** Debugging functions used in plotting
+* **interpolate_fcst.py** The file containing functions that actually do the OpenCV interpolation. This is called always using all the time steps from both obsdata and modeldata. Methods available are linear (point-based weights), advection (corresponding to mode="analysis_fcst_smoothed") and model_smoothing (corresponding to mode=="model_fcst_smoothed")
+* **requirements.txt** Needed Python dependencies
+* **/testdata/radar_detectability_field_255_280.h5** Radar detectability field used when spatially combining radar+model data
+* **/testdata/latest/retrieval_script.sh** Script that retrieves the latest operative input fields
+
 ### Example runs
 ```console
 python3 call_interpolation.py --model_data testdata/latest/fcst_tprate.grib2 --background_data testdata/latest/mnwc_tprate.grib2 --dynamic_nwc_data testdata/latest/mnwc_tprate_full.grib2 --extrapolated_data testdata/latest/ppn_tprate.grib2 --detectability_data testdata/radar_detectability_field_255_280.h5 --output_data testdata/latest/output/smoothed_mnwc_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 9

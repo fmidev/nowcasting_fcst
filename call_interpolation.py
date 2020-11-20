@@ -483,7 +483,12 @@ def main():
     
     # Read in observation data (Time stamp is analysis time!)
     if options.obs_data!=None:
-        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obs_data,added_hours=0)
+        # For accumulated model precipitation, add one hour to timestamp as it is read in as the beginning of the 1-hour period and not as the end of it
+        if (options.parameter == 'precipitation_1h_bg'):
+            added_hours = 1
+        else:
+            added_hours = 0
+        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obs_data,added_hours)
         quantity1 = options.parameter
         # If missing, remove variables and print warning text
         if (np.sum((image_array1 != nodata1) & (image_array1 != None))==0):

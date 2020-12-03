@@ -22,11 +22,15 @@ def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
     
 def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
 
+    # For those longitudes that are over 180 degrees, reduce 360 degrees from them
+    longitudes[longitudes > 180] = longitudes[longitudes > 180] - 360
+
     grid_lon, grid_lat = [longitudes, latitudes]
     
     proj = cartopy.crs.LambertConformal(central_latitude = int(np.mean(latitudes)), 
                              central_longitude = int(np.mean(longitudes)), 
                              standard_parallels = (25, 25))
+    #proj = cartopy.crs.PlateCarree()
 
     ax = plt.axes(projection = proj)
     # x, y = ax(*[grid_lon, grid_lat])

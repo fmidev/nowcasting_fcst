@@ -360,16 +360,18 @@ def farneback_params_config(config_file_name):
 
 
 
-def read_background_data_and_make_mask(image_file, input_mask=None, mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3):
+def read_background_data_and_make_mask(image_file=None, input_mask=None, mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3):
     # mask_smaller_than_borders controls how many pixels the initial mask is compared to obs field
     # smoother_coefficient controls how long from the borderline bg field is affecting
     # gaussian_filter_coefficient sets the smoothiness of the weight field
     
     # Read in detectability data field and change all not-nodata values to zero
-    image_array4, quantity4_min, quantity4_max, timestamp4, mask_nodata4, nodata4 = read(image_file)
-    image_array4[np.where(~np.ma.getmask(mask_nodata4))] = 0
-    mask_nodata4_p = np.sum(np.ma.getmask(mask_nodata4),axis=0)>0
-    
+    if image_file is not None:
+        image_array4, quantity4_min, quantity4_max, timestamp4, mask_nodata4, nodata4 = read(image_file)
+        image_array4[np.where(~np.ma.getmask(mask_nodata4))] = 0
+        mask_nodata4_p = np.sum(np.ma.getmask(mask_nodata4),axis=0)>0
+    else:
+        mask_nodata4_p = input_mask
     # Creating a linear smoother field: More weight for bg near the bg/obs border and less at the center of obs field
     # Gaussian smoother widens the coefficients so initially calculate from smaller mask the values
     used_mask = distance_transform_edt(np.logical_not(mask_nodata4_p)) - distance_transform_edt(mask_nodata4_p)
@@ -403,12 +405,12 @@ def define_common_mask_for_fields(*args):
             raise ValueError("grid sizes do not match!")
     return(stacked)
 
-    
+
 
 def main():
 
     # # For testing purposes set test datafiles
-    # options.obs_data = None # "testdata/latest/obs_tp.grib2"
+    # options.obs_data = "testdata/14/ppn_tprate_obs.grib2"
     # options.model_data = "testdata/14/fcst_tprate.grib2"
     # options.background_data = "testdata/14/mnwc_tprate.grib2"
     # options.dynamic_nwc_data = "testdata/14/mnwc_tprate_full.grib2"
@@ -564,6 +566,7 @@ def main():
         
     # If both extrapolated_data and dynamic_nwc_data are read in, combine them spatially by using mask
     if 'image_arrayx1' in locals() and 'image_arrayx2' in locals():
+        weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
             # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
             dynamic_nwc_data_common_indices = [timestampx1.index(x) if x in timestampx1 else None for x in timestampx2]
@@ -572,11 +575,15 @@ def main():
             image_arrayx3 = np.copy(image_arrayx1)
             # Combine data for each forecast length
             for common_index in range(0,len(dynamic_nwc_data_common_indices)):
-                # A larger mask is used for longer forecast length (PPN advects precipitation data also outside Finnish borders -> increase mask by 8 pixels/hour)
-                mask_inflation = common_index*6
+                # # A larger mask could be used here in case of constant mask and longer forecast length (PPN advects precipitation data also outside Finnish borders -> increase mask by 8 pixels/hour)
+                # mask_inflation = common_index*6
+                mask_inflation = -6
                 # Read radar composite field used as mask for Finnish data. Lat/lon info is not stored in radar composite HDF5 files, but these are the same! (see README.txt)
-                weights_bg = read_background_data_and_make_mask(image_file=options.detectability_data, input_mask=define_common_mask_for_fields(mask_nodatax2), mask_smaller_than_borders=(-2-mask_inflation), smoother_coefficient=0.2, gaussian_filter_coefficient=3)
+                weights_bg = read_background_data_and_make_mask(image_file=None, input_mask=mask_nodatax2.mask[common_index,:,:], mask_smaller_than_borders=(-2-mask_inflation), smoother_coefficient=0.2, gaussian_filter_coefficient=3)
                 weights_obs = 1 - weights_bg
+                weights_obs_extrap[common_index,:,:] = weights_obs
+                # plt.imshow(weights_obs)
+                # plt.show()
                 if (weights_bg.shape != image_arrayx1.shape[1:] != image_arrayx2.shape[1:]):
                     raise ValueError("Model data, background data and image do not all have same grid size!")
                 # Adding up the two fields (obs_data for area over Finland, bg field for area outside Finland)
@@ -776,9 +783,21 @@ def main():
                 # Read radar composite field used as mask for Finnish data. Lat/lon info is not stored in radar composite HDF5 files, but these are the same! (see README.txt)
                 weights_bg = read_background_data_and_make_mask(image_file=options.detectability_data, input_mask=define_common_mask_for_fields(mask_nodata_obs_data), mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3)
                 weights_obs = 1 - weights_bg
-                title = "weights "
-                outfile = outdir + "image_array_weights.png"
+                title = "weights 0h"
+                outfile = outdir + "image_array_weights_0h.png"
                 diagnostics_functions.plot_imshow_on_map(weights_bg,0,1,outfile,"jet",title,longitudes,latitudes)
+                if 'weights_obs_extrap' in locals():
+                    weights_obs_all = np.concatenate((weights_obs[np.newaxis,:], weights_obs_extrap),axis=0)
+                    fig, ax = plt.subplots(1,weights_obs_all.shape[0])
+                    for im_no in np.arange(weights_obs_all.shape[0]):
+                        title = f"weights {im_no}h"
+                        outfile = outdir + f"image_array_weights_{im_no}h.png"
+                        diagnostics_functions.plot_imshow_on_map(weights_obs_all[im_no,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
+
+                        # ax[0,im_no].diagnostics_functions.plot_imshow_on_map(weights_obs_all[im_no,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
+
+
+
 
         # Plot dynamic_nwc_data if it exists
         if options.dynamic_nwc_data!=None:

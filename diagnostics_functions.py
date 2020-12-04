@@ -35,7 +35,7 @@ def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
     ax = plt.axes(projection = proj)
     # x, y = ax(*[grid_lon, grid_lat])
     x, y = [grid_lon, grid_lat]
-    ax.pcolormesh(x, y, temps, shading='auto', vmin=vmin, vmax=vmax, cmap=cmap, transform = cartopy.crs.PlateCarree())
+    cm = ax.pcolormesh(x, y, temps, shading='auto', vmin=vmin, vmax=vmax, cmap=cmap, transform = cartopy.crs.PlateCarree())
     ax.coastlines('50m')
     ax.add_feature(cartopy.feature.OCEAN)
     ax.add_feature(cartopy.feature.LAND, edgecolor='black')
@@ -43,6 +43,7 @@ def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
     ax.add_feature(cartopy.feature.RIVERS)
     ax.gridlines()
     ax.set_title(title)
+    plt.colorbar(cm, fraction = 0.046, pad = 0.04, orientation="horizontal")
     # plt.show()
 
     # # Transform longitudes defined in 0...360 to -180...180
@@ -61,7 +62,7 @@ def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
     # plt.tight_layout(pad=0.)
     # plt.xticks([])
     # plt.yticks([])
-    plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
+    plt.savefig(outfile,bbox_inches='tight', pad_inches=0, dpi=1200)
     plt.close()
 
     

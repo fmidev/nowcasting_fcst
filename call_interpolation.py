@@ -788,7 +788,7 @@ def main():
                 diagnostics_functions.plot_imshow_on_map(weights_bg,0,1,outfile,"jet",title,longitudes,latitudes)
                 if 'weights_obs_extrap' in locals():
                     weights_obs_all = np.concatenate((weights_obs[np.newaxis,:], weights_obs_extrap),axis=0)
-                    fig, ax = plt.subplots(1,weights_obs_all.shape[0])
+                    # fig, ax = plt.subplots(1,weights_obs_all.shape[0])
                     for im_no in np.arange(weights_obs_all.shape[0]):
                         title = f"weights {im_no}h"
                         outfile = outdir + f"image_array_weights_{im_no}h.png"

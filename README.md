@@ -1,8 +1,9 @@
-# Smartmet nowcast observation-nowcast-forecast smoother
+# Smartmet nowcast observation-nowcast-forecast blender
 This smoother is used to create a deterministic nowcast that incorporates several data sources available in the nowcasting regime. The output of the smoother is a smoothly behaving nowcast/forecast, the beginning part of which up until $PREDICTABILITY-1 hours is created by using image-morphing algorithms and the related interpolation. The output data from the $PREDICTABILITY hour onwards is completely model-based. If forecast steps in the modeldata and $SECONDS_BETWEEN_STEPS are defined in even hours, the output data will have the same time length as modeldata. The output nowcast can then be pasted back to the early part of the longer NWP forecast (of e.g. 10 days). The end result is a spatially and temporally seamless medium-range forecast, that preserves smooth development of the physical fields without discontinuities and can be rapidly updated with the latest nowcast data.
 
 ## Authors
 jussi.ylhaisi@fmi.fi
+leila.hieta@fmi.fi
 tuuli.perttula@fmi.fi
 
 ## Usage

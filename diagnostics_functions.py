@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
+from matplotlib.colors import LinearSegmentedColormap
 import cartopy
 
 
@@ -31,7 +32,17 @@ def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
                              central_longitude = int(np.mean(longitudes)), 
                              standard_parallels = (25, 25))
     #proj = cartopy.crs.PlateCarree()
-
+    #ncolors = 256
+    
+    temps[np.where(temps<=0.1)] = None
+    ncolors = 128
+    color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
+    # change alpha values
+    color_array[:,-1] = np.linspace(0.0,1.0,ncolors)
+    # create a colormap object
+    # register this new colormap with matplotlib
+    map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha',colors=color_array)
+    plt.register_cmap(cmap=map_object)
     ax = plt.axes(projection = proj)
     # x, y = ax(*[grid_lon, grid_lat])
     x, y = [grid_lon, grid_lat]

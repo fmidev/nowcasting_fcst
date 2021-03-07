@@ -450,6 +450,9 @@ def main():
     
     # Read parameters from config file for interpolation or optical flow algorithm.
     farneback_params=farneback_params_config(options.farneback_params)
+    # give default values if no model_data
+    nodata = None
+    timestamp2 = None
     # For accumulated 1h precipitation, larger surrounding area for Farneback params are used: winsize 30 -> 150 and poly_n 20 -> 61
     if options.parameter == 'precipitation_1h_bg':
         farneback_params = list(farneback_params)
@@ -466,6 +469,7 @@ def main():
     # Model datafile needs to be given as an argument! This is obligatory, as obs/nwcdata is smoothed towards it!
     # Model data contains also the analysis time step!
     # ASSUMPTION USED IN THE REST OF THE CODE: model_data HAS ALWAYS ALL THE NEEDED TIME STEPS!
+    # Exception! If parameter is precipitation 1h (and there is dynamic_nwc_data) no need of model_data. In this case a 9h nwc data is produced with PPN and MNWC
     if options.model_data!=None:
         # For accumulated model precipitation, add one hour to timestamp as it is read in as the beginning of the 1-hour period and not as the end of it
         if (options.parameter == 'precipitation_1h_bg'):
@@ -480,8 +484,8 @@ def main():
         if (np.sum((image_array2 != nodata2) & (image_array2 != None))==0):
             raise ValueError("Model datafile contains only missing data!")
             del (image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2)
-    else:
-        raise NameError("Model datafile needs to be given as an argument!")
+    elif (options.parameter!='precipitation_1h_bg') & (options.model_data==None):
+        raise NameError("Model datafile needs to be given as an argument if not precipitation!")
     
     # Read in observation data (Time stamp is analysis time!)
     if options.obs_data!=None:
@@ -514,7 +518,9 @@ def main():
     # Creating spatial composite for the first time step from obs and background data
     if 'image_array1' in locals() and 'image_array3' in locals():
         # Read radar composite field used as mask for Finnish data. Lat/lon info is not stored in radar composite HDF5 files, but these are the same! (see README.txt)
-        weights_bg = read_background_data_and_make_mask(image_file=options.detectability_data, input_mask=define_common_mask_for_fields(mask_nodata1), mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3)
+        # weights_bg = read_background_data_and_make_mask(image_file=options.detectability_data, input_mask=define_common_mask_for_fields(mask_nodata1), mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3)
+        # We are assuming that the analysis time includes the radar mask information and not using separate detectability_data
+        weights_bg = read_background_data_and_make_mask(image_file=None, input_mask=mask_nodata1.mask, mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3)
         weights_obs = 1 - weights_bg
         if (weights_bg.shape != image_array1.shape[1:] != image_array3.shape[1:]):
             raise ValueError("Model data, background data and image do not all have same grid size!")
@@ -536,6 +542,7 @@ def main():
             added_hours = 0
         image_arrayx1, quantityx1_min, quantityx1_max, timestampx1, mask_nodatax1, nodatax1, longitudesx1, latitudesx1 = read(options.dynamic_nwc_data,added_hours)
         quantityx1 = options.parameter
+        #print(timestampx1)
         # If missing, remove variables and print warning text
         if (np.sum((image_arrayx1 != nodatax1) & (image_arrayx1 != None))==0):
             print("options.dynamic_nwc_data contains only missing data!")
@@ -597,7 +604,9 @@ def main():
                 R_max_nwc = max(image_arrayx1.max(),image_arrayx3.max())
                 # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values! Here predictability is len(timestampx2) and not len(timestampx2)+1! -> last timestep of image_arrayx2 recieves a weight 0! 
                 if (options.parameter == "precipitation_1h_bg"):
-                   image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-4.5)
+                    if nodata==None:
+                        nodata = nodatax1
+                    image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-4.5)
                 else:
                     raise ValueError("Only precipitation_1h_bg variable is supported by the code! Provide variable-dependent value for sigmoid_steepness! Revise also the bg mask used!")
             else:
@@ -618,6 +627,8 @@ def main():
             if image_array1.shape[1:]!=image_arrayx1.shape[1:]:
                 print("obsdata and dynamic_nwc/extrapolation data have different grid sizes! Cannot combine!")
             else:
+                if timestamp2 == None:
+                    timestamp2 = timestampx1
                 nwc_model_indices = [timestamp2.index(x) if x in timestamp2 else None for x in timestampx1]
                 obs_model_indices = timestamp2.index(timestamp1[0])
                 # Use obsdata as such for the first time step and nwc data for the forecast steps after the analysis hour
@@ -640,72 +651,77 @@ def main():
             timestamp1 = timestampx1
         else:
             raise ValueError("no obsdata or nwc data available! Cannot smooth anything!")
-
-    # If needed, fill up "obsfields" data array with model data (so that timestamp2 and timestamp1 will eventually be the same)
-    # Find out obsdata indices that coincide with modeldata (None values indicate time steps that there is no obsdata available for those modeldata time steps)
-    model_obs_indices = [timestamp1.index(x) if x in timestamp1 else None for x in timestamp2]
-    # If even a single forecast time index in model_data is missing from the obsfields data, fill it out with model data
-    if (all(x!=None for x in model_obs_indices) == False):
-        # Use modeldata as base data
-        image_array_temp = np.copy(image_array2)
-        timestamp_temp = [i for i in timestamp2]
-        # Replace image_array_temp with obsdata for those time stamps that there is obsdata available
-        # These obs indices will be assigned (Just remove None values from model_obs_indices)
-        assigned_obs_indices = [i for i in model_obs_indices if i!=None]
-        # Obsdata is assigned to these following indices
-        model_assignable_indices = [model_obs_indices.index(i) for i in model_obs_indices if i!=None]
-        image_array_temp[model_assignable_indices,:,:] = image_array1[assigned_obs_indices,:,:]
-        image_array1 = np.copy(image_array_temp)
-        timestamp1 = timestamp_temp
-    # Now exists image_array1 (obs/nwc data) and image_array2 (model data)
-
-    # Define nodata masks separately and commonly
-    mask_nodata1 = np.ma.masked_where(image_array1 == nodata,image_array1)
-    mask_nodata2 = np.ma.masked_where(image_array2 == nodata,image_array2)
-    # Replace all values according to mask_nodata
-    mask_nodata = define_common_mask_for_fields(mask_nodata1,mask_nodata2)
-    image_array1[:,mask_nodata] = nodata
-    image_array2[:,mask_nodata] = nodata
     
-    # Checking out that model grid sizes correspond to each other
-    if (image_array1.shape != image_array2.shape or timestamp1 != timestamp2):
-        raise ValueError("image_array1.shape and image_array2.shape do not correspond to each other!")
+    # The spatially combined, smoothed precip field is stored, if no model data is available
+    interpolated_advection = image_array1
 
-    # Defining mins and max in all data
-    R_min = min(image_array1.min(),image_array2.min())
-    R_max = max(image_array1.max(),image_array2.max())
+    # Do the rest if the model_data IS included
+    if options.model_data!=None:
+        # If needed, fill up "obsfields" data array with model data (so that timestamp2 and timestamp1 will eventually be the same)
+        # Find out obsdata indices that coincide with modeldata (None values indicate time steps that there is no obsdata available for those modeldata time steps)
+        model_obs_indices = [timestamp1.index(x) if x in timestamp1 else None for x in timestamp2]
+        # If even a single forecast time index in model_data is missing from the obsfields data, fill it out with model data
+        if (all(x!=None for x in model_obs_indices) == False):
+            # Use modeldata as base data
+            image_array_temp = np.copy(image_array2)
+            timestamp_temp = [i for i in timestamp2]
+            # Replace image_array_temp with obsdata for those time stamps that there is obsdata available
+            # These obs indices will be assigned (Just remove None values from model_obs_indices)
+            assigned_obs_indices = [i for i in model_obs_indices if i!=None]
+            # Obsdata is assigned to these following indices
+            model_assignable_indices = [model_obs_indices.index(i) for i in model_obs_indices if i!=None]
+            image_array_temp[model_assignable_indices,:,:] = image_array1[assigned_obs_indices,:,:]
+            image_array1 = np.copy(image_array_temp)
+            timestamp1 = timestamp_temp
+        # Now exists image_array1 (obs/nwc data) and image_array2 (model data)
 
-#     # If the radar detectability field size does not match with that of background field, forcing this field to match that
-#     if (image_array4.shape[3:0:-1] != image_array3.shape[3:0:-1]):
-#         image_array4 = cv2.resize(image_array4[0,:,:], dsize=image_array3.shape[3:0:-1], interpolation=cv2.INTER_NEAREST)
-#         mask_nodata4 = np.ma.masked_where(image_array4 == nodata4,image_array4)
-#         # mask_nodata4 = cv2.resize(mask_nodata4[0,:,:], dsize=image_array3.shape[1:3], interpolation=cv2.INTER_NEAREST)
-#         image_array4 = np.expand_dims(image_array4, axis=0)
-#         mask_nodata4 = np.expand_dims(mask_nodata4, axis=0)
-#     # Checking if all latitude/longitude/timestamps in the different data sources correspond to each other
-#     if (np.array_equal(longitudes1,longitudes2) and np.array_equal(longitudes1,longitudes3) and np.array_equal(latitudes1,latitudes2) and np.array_equal(latitudes1,latitudes3)):
-#         longitudes = longitudes1
-#         latitudes = latitudes1
-# 
-#     # Resize observation field to same resolution with model field and slightly blur to make the two fields look more similar for OpenCV.
-#     # NOW THE PARAMETER IS A CONSTANT AD-HOC VALUE!!!
-#     reshaped_size = list(image_array2.shape)
-#     if (options.mode == "analysis_fcst_smoothed"):
-#         reshaped_size[0] = 1
-#     image_array1_reshaped=np.zeros(reshaped_size)
-#     for n in range(0,image_array1.shape[0]):
-#         #Resize                       
-#         image_array1_reshaped[n]=imresize(image_array1[n], image_array2[0].shape, interp='bilinear', mode='F')
-#         #Blur
-#         image_array1_reshaped[n]=gaussian_filter(image_array1_reshaped[n], options.gaussian_filter_sigma)
-#     image_array1=image_array1_reshaped
+        # Define nodata masks separately and commonly
+        mask_nodata1 = np.ma.masked_where(image_array1 == nodata,image_array1)
+        mask_nodata2 = np.ma.masked_where(image_array2 == nodata,image_array2)
+        # Replace all values according to mask_nodata
+        mask_nodata = define_common_mask_for_fields(mask_nodata1,mask_nodata2)
+        image_array1[:,mask_nodata] = nodata
+        image_array2[:,mask_nodata] = nodata
+    
+        # Checking out that model grid sizes correspond to each other
+        if (image_array1.shape != image_array2.shape or timestamp1 != timestamp2):
+            raise ValueError("image_array1.shape and image_array2.shape do not correspond to each other!")
+
+        # Defining mins and max in all data
+        R_min = min(image_array1.min(),image_array2.min())
+        R_max = max(image_array1.max(),image_array2.max())
+
+    #     # If the radar detectability field size does not match with that of background field, forcing this field to match that
+    #     if (image_array4.shape[3:0:-1] != image_array3.shape[3:0:-1]):
+    #         image_array4 = cv2.resize(image_array4[0,:,:], dsize=image_array3.shape[3:0:-1], interpolation=cv2.INTER_NEAREST)
+    #         mask_nodata4 = np.ma.masked_where(image_array4 == nodata4,image_array4)
+    #         # mask_nodata4 = cv2.resize(mask_nodata4[0,:,:], dsize=image_array3.shape[1:3], interpolation=cv2.INTER_NEAREST)
+    #         image_array4 = np.expand_dims(image_array4, axis=0)
+    #         mask_nodata4 = np.expand_dims(mask_nodata4, axis=0)
+    #     # Checking if all latitude/longitude/timestamps in the different data sources correspond to each other
+    #     if (np.array_equal(longitudes1,longitudes2) and np.array_equal(longitudes1,longitudes3) and np.array_equal(latitudes1,latitudes2) and np.array_equal(latitudes1,latitudes3)):
+    #         longitudes = longitudes1
+    #         latitudes = latitudes1
+    # 
+    #     # Resize observation field to same resolution with model field and slightly blur to make the two fields look more similar for OpenCV.
+    #     # NOW THE PARAMETER IS A CONSTANT AD-HOC VALUE!!!
+    #     reshaped_size = list(image_array2.shape)
+    #     if (options.mode == "analysis_fcst_smoothed"):
+    #         reshaped_size[0] = 1
+    #     image_array1_reshaped=np.zeros(reshaped_size)
+    #     for n in range(0,image_array1.shape[0]):
+    #         #Resize                       
+    #         image_array1_reshaped[n]=imresize(image_array1[n], image_array2[0].shape, interp='bilinear', mode='F')
+    #         #Blur
+    #         image_array1_reshaped[n]=gaussian_filter(image_array1_reshaped[n], options.gaussian_filter_sigma)
+    #     image_array1=image_array1_reshaped
 
 
-    # Interpolate data in either analysis_fcst_smoothed or model_fcst_smoothed -mode
-    if (options.mode == "analysis_fcst_smoothed"):
-        interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
-    if (options.mode == "model_fcst_smoothed"):
-        interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
+        # Interpolate data in either analysis_fcst_smoothed or model_fcst_smoothed -mode
+        if (options.mode == "analysis_fcst_smoothed"):
+            interpolated_advection=interpolate_fcst.advection(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False)
+        if (options.mode == "model_fcst_smoothed"):
+            interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
 
 
     # Implementing QC-thresholds! They are not atm given as parameters to the program!
@@ -719,13 +735,11 @@ def main():
     if (options.parameter == '2r'):
         interpolated_advection[np.where(interpolated_advection>RH_max)] = RH_max
 
-        
-    # Save interpolated field to a new file
-    write(interpolated_data=interpolated_advection,image_file=options.model_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability)
-
-
-
-
+    if (options.model_data!=None):    
+        # Save interpolated field to a new file
+        write(interpolated_data=interpolated_advection,image_file=options.model_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability)
+    else:
+        write(interpolated_data=interpolated_advection,image_file=options.dynamic_nwc_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability)
 
 
 
@@ -763,12 +777,29 @@ def main():
         # Defining mins and max in all data
         R_min = interpolated_advection.min()
         R_max = interpolated_advection.max()
+        if(options.parameter=='precipitation_1h_bg'):
+            R_max = 3
+            added_hours =1
+        elif (options.parameter=='2t'):
+            R_max = 280
+        # plotting interpolated_advection fields
+        else:
+            added_hours = 0
+            R_max = interpolated_advection.max()
+        for n in (list(range(0, 9))):
+            outdir = "figures/fields/"
+            # PLOTTING AND SAVING TO FILE
+            title = options.parameter + " IA=+" + str(n+added_hours) + "h"
+            outfile = outdir + "field" + options.parameter + " IA=+" + str(n) + "h.png"
+            # diagnostics_functions.plot_imshow(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title)    
+            diagnostics_functions.plot_imshow_on_map(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title,longitudes,latitudes)
+
         # Plot unmodified obs data if it exists
         if options.obs_data!=None:
             image_array_obs_data, quantity_obs_data_min, quantity_obs_data_max, timestamp_obs_data, mask_nodata_obs_data, nodata_obs_data, longitudes_obs_data, latitudes_obs_data = read(options.obs_data)
             quantity_plot = options.parameter
             # Plotting LAPS field as it is in the uncombined file
-            title = "LAPS "
+            title = "OBS (LAPS/PPN) "
             outfile = outdir + "image_array_obs_data.png"
             diagnostics_functions.plot_imshow_on_map(image_array_obs_data[0,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
 
@@ -972,8 +1003,10 @@ if __name__ == '__main__':
                         help='Dynamic nowcasting model data field, which is smoothed to modeldata. If extrapolated_data is provided, it is spatially smoothed with dynamic_nwc_data. First timestep of 0h should not be included in this data!')
     parser.add_argument('--extrapolated_data',
                         help='Nowcasting model data field acquired using extrapolation methods (like PPN), which is smoothed to modeldata. If dynamic_nwc_data is provided, extrapolated_data is spatially smoothed with it. First timestep of 0h should not be included in this data!')
+    # parser.add_argument('--detectability_data',
+    #                     default="testdata/radar_detectability_field_255_280.h5",
+    #                     help='Radar detectability field, which is used in spatial blending of obsdata and bgdata')
     parser.add_argument('--detectability_data',
-                        default="testdata/radar_detectability_field_255_280.h5",
                         help='Radar detectability field, which is used in spatial blending of obsdata and bgdata')
     parser.add_argument('--output_data',
                         help='Output file name for nowcast data field')

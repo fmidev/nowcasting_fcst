@@ -25,7 +25,7 @@ Code is written in Python 3 and heavily uses eccodes Python bindings. The progra
 
 ### Example runs
 ```console
-python3 call_interpolation.py --obs_data testdata/latest/ppn_tprate_obs.grib2 --model_data testdata/latest/fcst_tprate.grib2 --background_data testdata/latest/mnwc_tprate.grib2 --dynamic_nwc_data testdata/latest/mnwc_tprate_full.grib2 --extrapolated_data testdata/latest/ppn_tprate.grib2 --detectability_data testdata/radar_detectability_field_255_280.h5 --output_data testdata/latest/output/smoothed_mnwc_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 9
+python3 call_interpolation.py --obs_data testdata/latest/ppn_tprate_obs.grib2 --model_data testdata/latest/fcst_tprate.grib2 --background_data testdata/latest/mnwc_tprate.grib2 --dynamic_nwc_data testdata/latest/mnwc_tprate_full.grib2 --extrapolated_data testdata/latest/ppn_tprate.grib2 --output_data testdata/latest/output/smoothed_mnwc_tprate.grib2 --parameter precipitation_1h_bg --mode model_fcst_smoothed --predictability 9
 python3 call_interpolation.py --dynamic_nwc_data testdata/latest/mnwc_cc.grib2 --model_data testdata/latest/fcst_cc.grib2 --output_data testdata/latest/output/smoothed_mnwc_TCC.grib2 --parameter total_cloud_cover --mode model_fcst_smoothed --predictability 9
 python3 call_interpolation.py --dynamic_nwc_data testdata/latest/mnwc_2t.grib2 --model_data testdata/latest/fcst_2t.grib2 --output_data testdata/latest/output/interpolated_2t.grib2 --parameter Temperature --mode analysis_fcst_smoothed --predictability 4
 python3 call_interpolation.py --dynamic_nwc_data testdata/latest/mnwc_2r.grib2 --model_data testdata/latest/fcst_2r.grib2 --output_data testdata/latest/output/interpolated_2r.grib2 --parameter Dewpoint --mode analysis_fcst_smoothed --predictability 4
@@ -36,7 +36,7 @@ python3 call_interpolation.py --dynamic_nwc_data testdata/latest/mnwc_10si.grib2
 Parameter|Explanation|Obligatory|Default value
 ----|----|----|----
 `obs_data`|Observation data field or similar, used as 0h forecast|no|`none`
-`model_data`|Model data field, towards which the nowcast is smoothed|yes|`none`
+`model_data`|Model data field, towards which the nowcast is smoothed|yes (no for tprate if dynamic_nwc_data is provided --> 8h forecast)|`none`
 `background_data`|Background data field for the 0h forecast where obsdata is spatially merged to|no|`none`
 `dynamic_nwc_data`|Dynamic nowcasting model data field, which is smoothed to modeldata. If extrapolated_data is provided, it is spatially smoothed with dynamic_nwc_data. First timestep of 0h should not be included in this data!|no|`none`
 `extrapolated_data`|Nowcasting model data field acquired using extrapolation methods (like PPN), which is smoothed to modeldata. If dynamic_nwc_data is provided, extrapolated_data is spatially smoothed with it. First timestep of 0h should not be included in this data!|no|`none`
@@ -58,6 +58,7 @@ Parameter|Explanation|Obligatory|Default value
 * Minimum input varies depending on the input parameters. At least some data (either obsdata, dynamic_nwc_data or extrapolated_data) in the beginning of the nowcast needs to be given. If obsdata/background_data is not given, the first timestep will simply be the model_data field.
 * This smoother only works for complete fields. No constant values etc. can be given.
 * Parameter added_hours for the function read() can be used to easily increase the timestamps of the input data, if necessary. This feature was made as precipitation_1h -timestamps are not unambiguously defined in the input data.
+* A short range forecast can be created for tprate where only dynamic_nwc_data and extrapolated_data are combined  
 
 ## Known issues, features and development ideas
 * "verif" mode (calculation of several verification metrics for all available producers, using past data) does not exist at the moment.

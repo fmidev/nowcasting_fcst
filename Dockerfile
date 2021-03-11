@@ -4,7 +4,7 @@ RUN rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.
 
 RUN dnf -y install dnf-plugins-core && \
     dnf config-manager --set-enabled powertools && \
-    dnf -y install git python38-pip python3-brlapi python38-numpy geos proj libSM libXrender eccodes && \
+    dnf -y install git python38-pip python3-brlapi python38-numpy geos proj libSM libXrender eccodes s3cmd && \
     dnf -y clean all
 
 COPY . /nowcasting_fcst

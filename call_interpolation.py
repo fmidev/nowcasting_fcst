@@ -1051,4 +1051,11 @@ if __name__ == '__main__':
                         help='If this option is set to yes, program plots out several diagnostics to files.')
 
     options = parser.parse_args()
+
+    # compatibility to make calling of the program easier
+    if options.parameter == 'tprate':
+        options.parameter = 'precipitation_1h_bg'
+    elif options.parameter in ['cc','lcc','mcc','hcc']:
+        options.parameter = 'total_cloud_cover'
+
     main()

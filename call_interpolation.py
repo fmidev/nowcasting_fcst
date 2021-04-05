@@ -250,12 +250,12 @@ def read_HDF5(image_h5_file,added_hours):
 
 
 
-def write(interpolated_data,image_file,write_file,variable,predictability):
+def write(interpolated_data,image_file,write_file,variable,predictability,t_diff):
 
     if write_file.endswith(".nc"):
-        write_nc(interpolated_data,image_file,write_file,variable,predictability)
+        write_nc(interpolated_data,image_file,write_file,variable,predictability,t_diff)
     elif write_file.endswith(".grib2"):
-        write_grib(interpolated_data,image_file,write_file,variable,predictability)
+        write_grib(interpolated_data,image_file,write_file,variable,predictability,t_diff)
     else:
         print("unsupported file type for file: %s" % (image_file))
         return
@@ -263,7 +263,7 @@ def write(interpolated_data,image_file,write_file,variable,predictability):
 
 
 
-def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predictability):
+def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predictability,t_diff):
     # (Almost) all the metadata is copied from modeldata.grib2
     try:
         os.remove(write_grib_file)
@@ -287,12 +287,19 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     #            with open(write_grib_file, "a") as out:
     #                msg.write(out)
     #        break # we use only the first grib message as a template
-
+    # For 1km PPN+MNWC forecast adjust the output grib dataTime (analysis time) since the 1h leadtime is used instead of 0h. Metadata taken from MNWC 
+    if t_diff == None:
+        t_diff = 0
+    t_diff = int(t_diff)
+    
     # This edits each grib message individually
     with GribFile(image_grib_file) as grib:
         i=-1
         for msg in grib:
             msg["bitsPerValue"] = 24
+            msg["dataTime"] = msg["dataTime"] + (t_diff*100)
+            if msg["dataTime"] == 2400:
+               msg["dataTime"] = 0
             msg["generatingProcessIdentifier"] = 202
             msg["centre"] = 86
             msg["bitmapPresent"] = True
@@ -307,7 +314,7 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
 
 
 
-def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictability):
+def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictability,t_diff):
     
     # All the metadata is copied from modeldata.nc
     nc_f = image_nc_file
@@ -453,6 +460,7 @@ def main():
     # give default values if no model_data
     nodata = None
     timestamp2 = None
+    
     # For accumulated 1h precipitation, larger surrounding area for Farneback params are used: winsize 30 -> 150 and poly_n 20 -> 61
     if options.parameter == 'precipitation_1h_bg':
         farneback_params = list(farneback_params)
@@ -737,9 +745,9 @@ def main():
 
     if (options.model_data!=None):    
         # Save interpolated field to a new file
-        write(interpolated_data=interpolated_advection,image_file=options.model_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability)
+        write(interpolated_data=interpolated_advection,image_file=options.model_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability,t_diff=options.time_offset)
     else:
-        write(interpolated_data=interpolated_advection,image_file=options.dynamic_nwc_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability)
+        write(interpolated_data=interpolated_advection,image_file=options.dynamic_nwc_data,write_file=options.output_data,variable=options.parameter,predictability=options.predictability,t_diff=options.time_offset)
 
 
 
@@ -1006,6 +1014,8 @@ if __name__ == '__main__':
     # parser.add_argument('--detectability_data',
     #                     default="testdata/radar_detectability_field_255_280.h5",
     #                     help='Radar detectability field, which is used in spatial blending of obsdata and bgdata')
+    parser.add_argument('--time_offset',
+                        help='Input/output grib metadata dataTime offset (positive values)')
     parser.add_argument('--detectability_data',
                         help='Radar detectability field, which is used in spatial blending of obsdata and bgdata')
     parser.add_argument('--output_data',

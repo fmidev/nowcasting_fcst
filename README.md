@@ -51,6 +51,7 @@ Parameter|Explanation|Obligatory|Default value
 `R_max`|Maximum precipitation intensity for optical flow computations. Values above R_max are clamped|no|30
 `DBZH_min`|Minimum DBZH for optical flow computations. Values below DBZH_min are set to zero|no|10
 `DBZH_max`|Maximum DBZH for optical flow computations. Values above DBZH_max are clamped|no|45
+`time_offset`|Time difference between input model_data/dynamic_nwc_data dataTime and the output (grib) dataTime in hours (positive values). |no|none
 `farneback_params`|Location of farneback params configuration file|yes|`compute_advinterp.cfg`
 `plot_diagnostics`|If this option is set to yes, program plots out several diagnostics to files|yes|`no`
 

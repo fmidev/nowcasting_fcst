@@ -296,13 +296,31 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     with GribFile(image_grib_file) as grib:
         i=-1
         for msg in grib:
+            analysistime = datetime.datetime.strptime("%s%04d" % (msg["dataDate"], int(msg["dataTime"])), "%Y%m%d%H%M")
+            analysistime = analysistime + datetime.timedelta(hours=t_diff)
+            msg["dataDate"] = int(analysistime.strftime("%Y%m%d"))
+            msg["dataTime"] = int(analysistime.strftime("%H%M"))
             msg["bitsPerValue"] = 24
-            msg["dataTime"] = msg["dataTime"] + (t_diff*100)
-            if msg["dataTime"] == 2400:
-               msg["dataTime"] = 0
             msg["generatingProcessIdentifier"] = 202
             msg["centre"] = 86
             msg["bitmapPresent"] = True
+
+            # 'forecastTime' is the start step of accumulation interval, or the leadtime
+            # if parameter is not aggregated
+            msg["forecastTime"] -= t_diff
+
+            if msg["productDefinitionTemplateNumber"] == 8:
+                assert(msg["indicatorOfUnitForTimeRange"] == 1) # hour
+                lt = analysistime + datetime.timedelta(hours=msg["lengthOfTimeRange"])
+
+                # these are not mandatory but some software uses them
+                msg["yearOfEndOfOverallTimeInterval"] = int(lt.strftime("%Y"))
+                msg["monthOfEndOfOverallTimeInterval"] = int(lt.strftime("%m"))
+                msg["dayOfEndOfOverallTimeInterval"] = int(lt.strftime("%d"))
+                msg["hourOfEndOfOverallTimeInterval"] = int(lt.strftime("%H"))
+                msg["minuteOfEndOfOverallTimeInterval"] = int(lt.strftime("%M"))
+                msg["secondOfEndOfOverallTimeInterval"] = int(lt.strftime("%S"))
+
             i = i+1 # msg["forecastTime"]
             if (i == interpolated_data.shape[0]):
                 break

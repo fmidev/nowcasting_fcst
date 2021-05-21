@@ -20,15 +20,16 @@ from scipy.ndimage.morphology import distance_transform_edt
 
 ### FUNCTIONS USED ###
 
-def read(image_file,added_hours=0):
+def read(image_file,added_hours=0,read_coordinates=False):
+    print(f"Reading {image_file}")
     if image_file.endswith(".nc"):
         return read_nc(image_file,added_hours)
     elif image_file.endswith(".grib2"):
-        return read_grib(image_file,added_hours)
+        return read_grib(image_file,added_hours,read_coordinates)
     elif image_file.endswith(".h5"):
         return read_HDF5(image_file,added_hours)
     else:
-        print("unsupported file type for file: %s" % (image_file))
+        sys.exit("unsupported file type for file: %s" % (image_file))
         
 
 
@@ -122,14 +123,13 @@ def read_nc(image_nc_file,added_hours):
 
 
 
-def read_grib(image_grib_file,added_hours):
-
+def read_grib(image_grib_file,added_hours,read_coordinates):
     # check comments from read_nc()
     dtime = []
     tempsl = []
     latitudes = []
     longitudes = []
-    
+
     with GribFile(image_grib_file) as grib:
         for msg in grib:
             #print msg.size()
@@ -144,15 +144,22 @@ def read_grib(image_grib_file,added_hours):
             # print(forecast_time)
             dtime.append(forecast_time)
             tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
-            latitudes.append(np.asarray(msg["latitudes"]).reshape(nj, ni))
-            longitudes.append(np.asarray(msg["longitudes"]).reshape(nj, ni))
+            if read_coordinates:
+                shape = msg["shapeOfTheEarth"]
+                if shape not in (0,1,6):
+                    print("Error: Data is defined in a spheroid which eccodes can't derive coordinates from. Another projection library such as proj4 should be used")
+                    sys.exit(1)
+                latitudes.append(np.asarray(msg["latitudes"]).reshape(nj, ni))
+                longitudes.append(np.asarray(msg["longitudes"]).reshape(nj, ni))
 
             
     temps = np.asarray(tempsl)
-    latitudes = np.asarray(latitudes)
-    longitudes = np.asarray(longitudes)
-    latitudes = latitudes[0,:,:]
-    longitudes = longitudes[0,:,:]
+    if len(latitudes) > 0:
+        latitudes = np.asarray(latitudes)
+        longitudes = np.asarray(longitudes)
+        latitudes = latitudes[0,:,:]
+        longitudes = longitudes[0,:,:]
+
     nodata = 9999
 
     mask_nodata = np.ma.masked_where(temps == nodata,temps)
@@ -502,7 +509,7 @@ def main():
             added_hours = 1
         else:
             added_hours = 0
-        image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data,added_hours)
+        image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data,added_hours,options.plot_diagnostics == 'yes')
         quantity2 = options.parameter
         # nodata values are always taken from the model field. Presumably these are the same.
         nodata = nodata2
@@ -520,12 +527,12 @@ def main():
             added_hours = 1
         else:
             added_hours = 0
-        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1 = read(options.obs_data,added_hours)
+        image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, _, _ = read(options.obs_data,added_hours)
         quantity1 = options.parameter
         # If missing, remove variables and print warning text
         if (np.sum((image_array1 != nodata1) & (image_array1 != None))==0):
             print("options.obs_data contains only missing data!")
-            del (image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes1, latitudes1)
+            del (image_array1, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1)
 
     # If observation data is supplemented with background data (to which Finnish obsdata is spatially smoothed), read it in, create a spatial mask and combine these two fields
     if options.background_data!=None:
@@ -533,12 +540,12 @@ def main():
             added_hours = 1
         else:
             added_hours = 0
-        image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3, longitudes3, latitudes3 = read(options.background_data,added_hours)
+        image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3, _, _ = read(options.background_data,added_hours)
         quantity3 = options.parameter
         # If missing, remove variables and print warning text
         if (np.sum((image_array3 != nodata3) & (image_array3 != None))==0):
             print("options.background_data contains only missing data!")
-            del (image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3, longitudes3, latitudes3)
+            del (image_array3, quantity3_min, quantity3_max, timestamp3, mask_nodata3, nodata3)
 
 
     # Creating spatial composite for the first time step from obs and background data

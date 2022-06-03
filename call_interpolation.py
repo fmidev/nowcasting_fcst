@@ -767,6 +767,13 @@ def main():
     RH_max = 100
     if (options.parameter == '2r'):
         interpolated_advection[np.where(interpolated_advection>RH_max)] = RH_max
+    POT_max = 100
+    if (options.parameter == 'pot'):
+        interpolated_advection[np.where(interpolated_advection>POT_max)] = POT_max
+        POT_min = 0
+    if (options.parameter == 'pot'):
+        interpolated_advection[np.where(interpolated_advection<POT_min)] = POT_min
+
 
     if (options.model_data!=None):    
         # Save interpolated field to a new file

@@ -285,7 +285,9 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
   R_interp = np.copy(modelfields)
   R_interp[0,:,:] = obsfields[0,:,:]
   
+  
   for fcst_length in all_fcst_lengths:
+      
       R1 = obsfields[fcst_length,:,:]
       R2 = modelfields[fcst_length,:,:]
 

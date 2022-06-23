@@ -604,8 +604,8 @@ def main():
         # if (options.parameter == 'precipitation_1h_bg'):
         #     timestampx2 = timestamp2[1:(len(timestampx2)+1)]
         
-    # If both extrapolated_data and dynamic_nwc_data are read in, combine them spatially by using mask
-    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals():
+    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is precipitation, combine them spatially by using mask
+    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter == 'precipitation_1h_bg':
         weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
             # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
@@ -646,6 +646,38 @@ def main():
                 raise ValueError("Mode must be either model_fcst_smoothed or analysis_fcst_smoothed!")
         else:
             raise ValueError("Check your data! Only one common forecast step between dynamic_nwc_data and extrapolated_data and there's no sense in combining these two forecast sources spatially!")
+    # If only dynamic_nwc_data is available, use that (so do nothing)
+    # If only extrapolated_data is available, use that as nowcasting data
+    if 'image_arrayx2' in locals() and 'image_arrayx1' not in locals():
+        image_arrayx1 = image_arrayx2
+        mask_nodatax1 = mask_nodatax2
+        timestampx1 = timestampx2
+
+    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is NOT precipitation
+    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter != 'precipitation_1h_bg':
+        weights_obs_extrap = np.zeros(image_arrayx2.shape)
+        if type(timestampx1)==list and type(timestampx2)==list:
+            # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
+            dynamic_nwc_data_common_indices = [timestampx1.index(x) if x in timestampx1 else None for x in timestampx2]
+        if len(dynamic_nwc_data_common_indices)>0:
+            # Calculate interpolated values between the fields image_arrayx1 and image_arrayx2
+            # As there always is more than one common timestamp between these data, always combine them using model_smoothing -method!
+            if (options.mode == "model_fcst_smoothed" or options.mode == "analysis_fcst_smoothed"):
+                # Defining mins and max in all data
+                R_min_nwc = min(image_arrayx1.min(),image_arrayx2.min())
+                R_max_nwc = max(image_arrayx1.max(),image_arrayx2.max())
+                # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values! Here predictability is len(timestampx2) and not len(timestampx2)+1! -> last timestep of image_arrayx2 recieves a weight 0! 
+                if (options.parameter != "precipitation_1h_bg"):
+                    if nodata==None:
+                        nodata = nodatax1
+                    image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx2, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2)-1, seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
+            
+            #if (options.mode == "model_fcst_smoothed"):
+            #interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
+
+            
+            else:
+                raise ValueError("Mode must be either model_fcst_smoothed or analysis_fcst_smoothed!")
     # If only dynamic_nwc_data is available, use that (so do nothing)
     # If only extrapolated_data is available, use that as nowcasting data
     if 'image_arrayx2' in locals() and 'image_arrayx1' not in locals():

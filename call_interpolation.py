@@ -130,29 +130,34 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
     latitudes = []
     longitudes = []
 
-    with GribFile(image_grib_file) as grib:
-        for msg in grib:
-            #print msg.size()
-            #print msg.keys()
-            ni = msg["Ni"]
-            nj = msg["Nj"]
-            #print(msg["dataDate"])
-            #print(msg["dataTime"])
-            #print(datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], msg["dataTime"]/100), "%Y%m%d/%H"))
-            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], int(msg["dataTime"]/100)), "%Y%m%d/%H") + datetime.timedelta(hours=msg["forecastTime"])
-            # forecast_time = datetime.datetime.strptime("%s%02d" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
-            # print(forecast_time)
+    with open(image_grib_file) as fp:
+        while True:
+            gh = codes_grib_new_from_file(fp)
+
+            if gh is None:
+                break
+
+            ni = codes_get_long(gh, "Ni")
+            nj = codes_get_long(gh, "Nj")
+            forecast_time = codes_get_long(gh, "forecastTime")
+            data_date = codes_get_long(gh, "dataDate")
+            data_time = codes_get_long(gh, "dataTime")
+
+            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + datetime.timedelta(hours=forecast_time)
             dtime.append(forecast_time)
-            tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
+
+            values = np.asarray(codes_get_values(gh))
+            tempsl.append(values.reshape(nj, ni))
             if read_coordinates:
-                shape = msg["shapeOfTheEarth"]
+                shape = codes_get_long(gh, "shapeOfTheEarth")
                 if shape not in (0,1,6):
                     print("Error: Data is defined in a spheroid which eccodes can't derive coordinates from. Another projection library such as proj4 should be used")
                     sys.exit(1)
-                latitudes.append(np.asarray(msg["latitudes"]).reshape(nj, ni))
-                longitudes.append(np.asarray(msg["longitudes"]).reshape(nj, ni))
+                latitudes.append(np.asarray(codes_get_array(gh, "latitudes").reshape(nj, ni)))
+                longitudes.append(np.asarray(codes_get_array(gh, "longitudes").reshape(nj, ni)))
 
-            
+            codes_release(gh)
+
     temps = np.asarray(tempsl)
     if len(latitudes) > 0:
         latitudes = np.asarray(latitudes)
@@ -277,65 +282,55 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     except OSError as e:
         pass
 
-    # Change data type of numpy array
-    # interpolated_data = np.round(interpolated_data,2)
-    # interpolated_data = interpolated_data.astype('float64')             
-
-    #with GribFile(image_grib_file) as grib:
-    #    for msg in grib:
-    #        msg["generatingProcessIdentifier"] = 202
-    #        msg["centre"] = 86
-    #        msg["bitmapPresent"] = True
-    #
-    #        for i in range(interpolated_data.shape[0]):
-    #            msg["forecastTime"] = i
-    #            msg["values"] = interpolated_data[i].flatten()
-    #
-    #            with open(write_grib_file, "a") as out:
-    #                msg.write(out)
-    #        break # we use only the first grib message as a template
     # For 1km PPN+MNWC forecast adjust the output grib dataTime (analysis time) since the 1h leadtime is used instead of 0h. Metadata taken from MNWC 
     if t_diff == None:
         t_diff = 0
     t_diff = int(t_diff)
     
     # This edits each grib message individually
-    with GribFile(image_grib_file) as grib:
+    with open(image_grib_file, "rb") as fp:
         i=-1
-        for msg in grib:
-            analysistime = datetime.datetime.strptime("%s%04d" % (msg["dataDate"], int(msg["dataTime"])), "%Y%m%d%H%M")
+
+        while True:
+            gh = codes_grib_new_from_file(fp)
+
+            if gh is None:
+                break
+
+            analysistime = datetime.datetime.strptime("%s%04d" % (codes_get_long(gh, "dataDate"), int(codes_get(gh, "dataTime"))), "%Y%m%d%H%M")
             analysistime = analysistime + datetime.timedelta(hours=t_diff)
-            msg["dataDate"] = int(analysistime.strftime("%Y%m%d"))
-            msg["dataTime"] = int(analysistime.strftime("%H%M"))
-            msg["bitsPerValue"] = 24
-            msg["generatingProcessIdentifier"] = 202
-            msg["centre"] = 86
-            msg["bitmapPresent"] = True
+            codes_set_long(gh, "dataDate", int(analysistime.strftime("%Y%m%d")))
+            codes_set_long(gh, "dataTime", int(analysistime.strftime("%H%M")))
+            codes_set_long(gh, "bitsPerValue", 24)
+            codes_set_long(gh, "generatingProcessIdentifier", 202)
+            codes_set_long(gh, "centre", 86)
+            codes_set_long(gh, "bitmapPresent", 1)
 
             # 'forecastTime' is the start step of accumulation interval, or the leadtime
             # if parameter is not aggregated
-            msg["forecastTime"] -= t_diff
+            forecast_time = codes_get_long(gh, "forecastTime")
+            codes_set_long(gh, "forecastTime", forecast_time - t_diff)
 
-            if msg["productDefinitionTemplateNumber"] == 8:
-                assert(msg["indicatorOfUnitForTimeRange"] == 1) # hour
-                lt = analysistime + datetime.timedelta(hours=msg["lengthOfTimeRange"])
+            if codes_get_long(gh, "productDefinitionTemplateNumber") == 8:
+                assert(codes_get_long(gh, "indicatorOfUnitForTimeRange") == 1) # hour
+                lt = analysistime + datetime.timedelta(hours=codes_get_long(gh, "lengthOfTimeRange"))
 
                 # these are not mandatory but some software uses them
-                msg["yearOfEndOfOverallTimeInterval"] = int(lt.strftime("%Y"))
-                msg["monthOfEndOfOverallTimeInterval"] = int(lt.strftime("%m"))
-                msg["dayOfEndOfOverallTimeInterval"] = int(lt.strftime("%d"))
-                msg["hourOfEndOfOverallTimeInterval"] = int(lt.strftime("%H"))
-                msg["minuteOfEndOfOverallTimeInterval"] = int(lt.strftime("%M"))
-                msg["secondOfEndOfOverallTimeInterval"] = int(lt.strftime("%S"))
+                codes_set_long(gh, "yearOfEndOfOverallTimeInterval", int(lt.strftime("%Y")))
+                codes_set_long(gh, "monthOfEndOfOverallTimeInterval", int(lt.strftime("%m")))
+                codes_set_long(gh, "dayOfEndOfOverallTimeInterval", int(lt.strftime("%d")))
+                codes_set_long(gh, "hourOfEndOfOverallTimeInterval", int(lt.strftime("%H")))
+                codes_set_long(gh, "minuteOfEndOfOverallTimeInterval", int(lt.strftime("%M")))
+                codes_set_long(gh, "secondOfEndOfOverallTimeInterval", int(lt.strftime("%S")))
 
-            i = i+1 # msg["forecastTime"]
+            i = i+1
             if (i == interpolated_data.shape[0]):
                 break
-            msg["values"] = interpolated_data[i,:,:].flatten()
-            # print("{} {}: {}".format("histogram of interpolated_data timestep ",i,np.histogram(interpolated_data[i,:,:].flatten(),bins=20,range=(240,300))))
-            # print("{} {}: {}".format("histogram of msg[values] timestep ",i,np.histogram(msg["values"],bins=20,range=(240,300))))
+            codes_set_values(gh, interpolated_data[i,:,:].flatten())
             with open(str(write_grib_file), "ab") as out:
-                msg.write(out)
+                codes_write(gh, out)
+
+            codes_release(gh)
 
 
 

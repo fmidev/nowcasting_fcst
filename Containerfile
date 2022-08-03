@@ -19,5 +19,4 @@ RUN update-alternatives --set python3 /usr/bin/python3.8 && \
 # Aggressive thinning of container image
 
 RUN rm -rf /nowcasting_fcst/testdata /nowcasting_fcst/.git && \
-    rpm -e platform-python-3.6.8-37.el8.x86_64 --nodeps && \
     rpm -qa|egrep "dbus|systemd|pam|python3-|dnf|subscription|crack" | xargs rpm -e --nodeps 2>/dev/null

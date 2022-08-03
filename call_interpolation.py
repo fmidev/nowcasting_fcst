@@ -18,6 +18,8 @@ import diagnostics_functions
 # import hiisi
 # from scipy.misc import imresize -> from PIL imort Image (imresize FEATURE IS NOT SUPPORTED ATM)
 
+
+
 ### FUNCTIONS USED ###
 def read(image_file,added_hours=0,read_coordinates=False):
     print(f"Reading {image_file}")
@@ -138,17 +140,32 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
             forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], int(msg["dataTime"]/100)), "%Y%m%d/%H") + datetime.timedelta(hours=msg["forecastTime"])
             # forecast_time = datetime.datetime.strptime("%s%02d" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
             # print(forecast_time)
+    with open(image_grib_file) as fp:
+        while True:
+            gh = codes_grib_new_from_file(fp)
+
+            if gh is None:
+                break
+
+            ni = codes_get_long(gh, "Ni")
+            nj = codes_get_long(gh, "Nj")
+            forecast_time = codes_get_long(gh, "forecastTime")
+            data_date = codes_get_long(gh, "dataDate")
+            data_time = codes_get_long(gh, "dataTime")
+
+            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + datetime.timedelta(hours=forecast_time)
             dtime.append(forecast_time)
             tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
             if read_coordinates:
-                shape = msg["shapeOfTheEarth"]
+                shape = codes_get_long(gh, "shapeOfTheEarth")
                 if shape not in (0,1,6):
                     print("Error: Data is defined in a spheroid which eccodes can't derive coordinates from. Another projection library such as proj4 should be used")
                     sys.exit(1)
-                latitudes.append(np.asarray(msg["latitudes"]).reshape(nj, ni))
-                longitudes.append(np.asarray(msg["longitudes"]).reshape(nj, ni))
+                latitudes.append(np.asarray(codes_get_array(gh, "latitudes").reshape(nj, ni)))
+                longitudes.append(np.asarray(codes_get_array(gh, "longitudes").reshape(nj, ni)))
 
-            
+            codes_release(gh)
+
     temps = np.asarray(tempsl)
     if len(latitudes) > 0:
         latitudes = np.asarray(latitudes)
@@ -273,65 +290,55 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     except OSError as e:
         pass
 
-    # Change data type of numpy array
-    # interpolated_data = np.round(interpolated_data,2)
-    # interpolated_data = interpolated_data.astype('float64')             
-
-    #with GribFile(image_grib_file) as grib:
-    #    for msg in grib:
-    #        msg["generatingProcessIdentifier"] = 202
-    #        msg["centre"] = 86
-    #        msg["bitmapPresent"] = True
-    #
-    #        for i in range(interpolated_data.shape[0]):
-    #            msg["forecastTime"] = i
-    #            msg["values"] = interpolated_data[i].flatten()
-    #
-    #            with open(write_grib_file, "a") as out:
-    #                msg.write(out)
-    #        break # we use only the first grib message as a template
     # For 1km PPN+MNWC forecast adjust the output grib dataTime (analysis time) since the 1h leadtime is used instead of 0h. Metadata taken from MNWC 
     if t_diff == None:
         t_diff = 0
     t_diff = int(t_diff)
     
     # This edits each grib message individually
-    with GribFile(image_grib_file) as grib:
+    with open(image_grib_file, "rb") as fp:
         i=-1
-        for msg in grib:
-            analysistime = datetime.datetime.strptime("%s%04d" % (msg["dataDate"], int(msg["dataTime"])), "%Y%m%d%H%M")
+
+        while True:
+            gh = codes_grib_new_from_file(fp)
+
+            if gh is None:
+                break
+
+            analysistime = datetime.datetime.strptime("%s%04d" % (codes_get_long(gh, "dataDate"), int(codes_get(gh, "dataTime"))), "%Y%m%d%H%M")
             analysistime = analysistime + datetime.timedelta(hours=t_diff)
-            msg["dataDate"] = int(analysistime.strftime("%Y%m%d"))
-            msg["dataTime"] = int(analysistime.strftime("%H%M"))
-            msg["bitsPerValue"] = 24
-            msg["generatingProcessIdentifier"] = 202
-            msg["centre"] = 86
-            msg["bitmapPresent"] = True
+            codes_set_long(gh, "dataDate", int(analysistime.strftime("%Y%m%d")))
+            codes_set_long(gh, "dataTime", int(analysistime.strftime("%H%M")))
+            codes_set_long(gh, "bitsPerValue", 24)
+            codes_set_long(gh, "generatingProcessIdentifier", 202)
+            codes_set_long(gh, "centre", 86)
+            codes_set_long(gh, "bitmapPresent", 1)
 
             # 'forecastTime' is the start step of accumulation interval, or the leadtime
             # if parameter is not aggregated
-            msg["forecastTime"] -= t_diff
+            forecast_time = codes_get_long(gh, "forecastTime")
+            codes_set_long(gh, "forecastTime", forecast_time - t_diff)
 
-            if msg["productDefinitionTemplateNumber"] == 8:
-                assert(msg["indicatorOfUnitForTimeRange"] == 1) # hour
-                lt = analysistime + datetime.timedelta(hours=msg["lengthOfTimeRange"])
+            if codes_get_long(gh, "productDefinitionTemplateNumber") == 8:
+                assert(codes_get_long(gh, "indicatorOfUnitForTimeRange") == 1) # hour
+                lt = analysistime + datetime.timedelta(hours=codes_get_long(gh, "lengthOfTimeRange"))
 
                 # these are not mandatory but some software uses them
-                msg["yearOfEndOfOverallTimeInterval"] = int(lt.strftime("%Y"))
-                msg["monthOfEndOfOverallTimeInterval"] = int(lt.strftime("%m"))
-                msg["dayOfEndOfOverallTimeInterval"] = int(lt.strftime("%d"))
-                msg["hourOfEndOfOverallTimeInterval"] = int(lt.strftime("%H"))
-                msg["minuteOfEndOfOverallTimeInterval"] = int(lt.strftime("%M"))
-                msg["secondOfEndOfOverallTimeInterval"] = int(lt.strftime("%S"))
+                codes_set_long(gh, "yearOfEndOfOverallTimeInterval", int(lt.strftime("%Y")))
+                codes_set_long(gh, "monthOfEndOfOverallTimeInterval", int(lt.strftime("%m")))
+                codes_set_long(gh, "dayOfEndOfOverallTimeInterval", int(lt.strftime("%d")))
+                codes_set_long(gh, "hourOfEndOfOverallTimeInterval", int(lt.strftime("%H")))
+                codes_set_long(gh, "minuteOfEndOfOverallTimeInterval", int(lt.strftime("%M")))
+                codes_set_long(gh, "secondOfEndOfOverallTimeInterval", int(lt.strftime("%S")))
 
-            i = i+1 # msg["forecastTime"]
+            i = i+1
             if (i == interpolated_data.shape[0]):
                 break
-            msg["values"] = interpolated_data[i,:,:].flatten()
-            # print("{} {}: {}".format("histogram of interpolated_data timestep ",i,np.histogram(interpolated_data[i,:,:].flatten(),bins=20,range=(240,300))))
-            # print("{} {}: {}".format("histogram of msg[values] timestep ",i,np.histogram(msg["values"],bins=20,range=(240,300))))
+            codes_set_values(gh, interpolated_data[i,:,:].flatten())
             with open(str(write_grib_file), "ab") as out:
-                msg.write(out)
+                codes_write(gh, out)
+
+            codes_release(gh)
 
 
 
@@ -599,8 +606,8 @@ def main():
         # if (options.parameter == 'precipitation_1h_bg'):
         #     timestampx2 = timestamp2[1:(len(timestampx2)+1)]
         
-    # If both extrapolated_data and dynamic_nwc_data are read in, combine them spatially by using mask
-    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals():
+    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is precipitation, combine them spatially by using mask
+    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter == 'precipitation_1h_bg':
         weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
             # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
@@ -641,6 +648,38 @@ def main():
                 raise ValueError("Mode must be either model_fcst_smoothed or analysis_fcst_smoothed!")
         else:
             raise ValueError("Check your data! Only one common forecast step between dynamic_nwc_data and extrapolated_data and there's no sense in combining these two forecast sources spatially!")
+    # If only dynamic_nwc_data is available, use that (so do nothing)
+    # If only extrapolated_data is available, use that as nowcasting data
+    if 'image_arrayx2' in locals() and 'image_arrayx1' not in locals():
+        image_arrayx1 = image_arrayx2
+        mask_nodatax1 = mask_nodatax2
+        timestampx1 = timestampx2
+
+    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is NOT precipitation
+    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter != 'precipitation_1h_bg':
+        weights_obs_extrap = np.zeros(image_arrayx2.shape)
+        if type(timestampx1)==list and type(timestampx2)==list:
+            # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
+            dynamic_nwc_data_common_indices = [timestampx1.index(x) if x in timestampx1 else None for x in timestampx2]
+        if len(dynamic_nwc_data_common_indices)>0:
+            # Calculate interpolated values between the fields image_arrayx1 and image_arrayx2
+            # As there always is more than one common timestamp between these data, always combine them using model_smoothing -method!
+            if (options.mode == "model_fcst_smoothed" or options.mode == "analysis_fcst_smoothed"):
+                # Defining mins and max in all data
+                R_min_nwc = min(image_arrayx1.min(),image_arrayx2.min())
+                R_max_nwc = max(image_arrayx1.max(),image_arrayx2.max())
+                # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values! Here predictability is len(timestampx2) and not len(timestampx2)+1! -> last timestep of image_arrayx2 recieves a weight 0!
+                if (options.parameter != "precipitation_1h_bg"):
+                    if nodata==None:
+                        nodata = nodatax1
+                    image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx2, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2)-1, seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
+
+            #if (options.mode == "model_fcst_smoothed"):
+            #interpolated_advection=interpolate_fcst.model_smoothing(obsfields=image_array1, modelfields=image_array2, mask_nodata=mask_nodata, farneback_params=fb_params, predictability=options.predictability, seconds_between_steps=options.seconds_between_steps, R_min=R_min, R_max=R_max, missingval=nodata, logtrans=False, sigmoid_steepness=-5)
+
+
+            else:
+                raise ValueError("Mode must be either model_fcst_smoothed or analysis_fcst_smoothed!")
     # If only dynamic_nwc_data is available, use that (so do nothing)
     # If only extrapolated_data is available, use that as nowcasting data
     if 'image_arrayx2' in locals() and 'image_arrayx1' not in locals():
@@ -762,6 +801,13 @@ def main():
     RH_max = 100
     if (options.parameter == '2r'):
         interpolated_advection[np.where(interpolated_advection>RH_max)] = RH_max
+    POT_max = 100
+    if (options.parameter == 'pot'):
+        interpolated_advection[np.where(interpolated_advection>POT_max)] = POT_max
+        POT_min = 0
+    if (options.parameter == 'pot'):
+        interpolated_advection[np.where(interpolated_advection<POT_min)] = POT_min
+
 
     if (options.model_data!=None):    
         # Save interpolated field to a new file

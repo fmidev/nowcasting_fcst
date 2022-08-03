@@ -156,7 +156,7 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   """
 
   # OBS! modelfields contains also analysis time step as step zero!
-  R1 = obsfields[0,:,:]
+  R1 = obsfields[1,:,:]
   R2 = modelfields[predictability,:,:]
   n_interp_frames = predictability*3600/seconds_between_steps - 1 # predictability is defined in hours
   tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)

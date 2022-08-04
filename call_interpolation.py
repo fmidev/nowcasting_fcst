@@ -131,19 +131,9 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
     latitudes = []
     longitudes = []
 
-    with GribFile(image_grib_file) as grib:
-        for msg in grib:
-
-            ni = msg["Ni"]
-            nj = msg["Nj"]
-            #print(datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], msg["dataTime"]/100), "%Y%m%d/%H"))
-            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(msg["dataDate"], int(msg["dataTime"]/100)), "%Y%m%d/%H") + datetime.timedelta(hours=msg["forecastTime"])
-            # forecast_time = datetime.datetime.strptime("%s%02d" % (msg["dataDate"], msg["dataTime"]), "%Y%m%d%H%M") + datetime.timedelta(hours=msg["forecastTime"])
-            # print(forecast_time)
     with open(image_grib_file) as fp:
         while True:
             gh = codes_grib_new_from_file(fp)
-
             if gh is None:
                 break
 
@@ -155,7 +145,9 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
 
             forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + datetime.timedelta(hours=forecast_time)
             dtime.append(forecast_time)
-            tempsl.append(np.asarray(msg["values"]).reshape(nj, ni))
+
+            values = np.asarray(codes_get_values(gh))
+            tempsl.append(values.reshape(nj, ni))
             if read_coordinates:
                 shape = codes_get_long(gh, "shapeOfTheEarth")
                 if shape not in (0,1,6):
@@ -187,7 +179,6 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
         dtime = [(i+datetime.timedelta(hours=added_hours)) for i in dtime]
     else:
         dtime = dtime+datetime.timedelta(hours=added_hours)
-
 
     return temps, temps_min, temps_max, dtime, mask_nodata, nodata, longitudes, latitudes
 
@@ -269,7 +260,6 @@ def read_HDF5(image_h5_file,added_hours):
     return temps, temps_min, temps_max, dtime, mask_nodata, nodata
 
 
-
 def write(interpolated_data,image_file,write_file,variable,predictability,t_diff):
 
     if write_file.endswith(".nc"):
@@ -280,7 +270,6 @@ def write(interpolated_data,image_file,write_file,variable,predictability,t_diff
         print("unsupported file type for file: %s" % (image_file))
         return
     print("wrote file '%s'" % write_file)
-
 
 
 def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predictability,t_diff):
@@ -511,7 +500,7 @@ def main():
             added_hours = 1
         else:
             added_hours = 0
-        image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data,added_hours,options.plot_diagnostics == 'yes')
+        image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data,added_hours)
         quantity2 = options.parameter
         # nodata values are always taken from the model field. Presumably these are the same.
         nodata = nodata2
@@ -832,10 +821,9 @@ class PlotData:
         self.image_array2 = image_array2
         self.interpolated_advection, self.quantity1_min, self.quantity1_max, \
         self.timestamp1, self.mask_nodata1, self.nodata1, self.longitudes, \
-        self.latitudes = read(self.options.output_data, read_coordinates=True)
+        self.latitudes = read(self.options.output_data, read_coordinates=False)
         self.plot_default()
     #Lisätään jokin vipu, jos haluaa saada muutkin kuvat ulos
-
 
     @staticmethod
     def generate_dirs(*args: str):
@@ -845,7 +833,7 @@ class PlotData:
         return f"{cwd}/{'/'.join(args)}"
 
     @staticmethod
-    def generate_output_file(path: str, name: str):
+    def generate_file_name(path: str, name: str):
         return f"{path}/{''.join(name)}"
 
     def generate_date(self, i):
@@ -888,10 +876,10 @@ class PlotData:
         # PLOTTING AND SAVING TO FILE
         title = "Probability of thunder"
         datetitle, dateformat = self.generate_date(0)
-        outfile = self.generate_output_file(outdir, "".join(["field_", title, "_", dateformat, "_", str(110), "h.png"]))
+        fig_name = self.generate_file_name(outdir, "".join(["field_", title, "_", dateformat, "_h.png"]))
         # diagnostics_functions.plot_imshow(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title)
         #diagnostics_functions.plot_imshow_on_map(self.interpolated_advection[n, :, :], R_min, R_max, outfile, "jet", title, self.longitudes, self.latitudes)
-        diagnostics_functions.plot_contourf_map_scandinavia(self.options.output_data, R_min, R_max, outfile, datetitle, title)
+        diagnostics_functions.plot_contourf_map_scandinavia(self.options.output_data, R_min, R_max, fig_name, datetitle, title)
 
     def plot_all(self):
 

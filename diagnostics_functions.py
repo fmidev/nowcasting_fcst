@@ -2,17 +2,15 @@ import numpy as np
 import xarray as xr
 import pygrib as pg
 import numpy.ma as ma
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 from matplotlib.colors import LinearSegmentedColormap
 import cartopy
-import metview as mv
-
 
 
 ########### DEBUGGING FUNCTIONS #############
-
 def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
     plt.imshow(temps,cmap=cmap,vmin=vmin,vmax=vmax,origin="lower")
     #plt.axis('off')
@@ -25,10 +23,7 @@ def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
     plt.close()
 
 
-
-    
 def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
-
     # For those longitudes that are over 180 degrees, reduce 360 degrees from them
     longitudes[longitudes > 180] = longitudes[longitudes > 180] - 360
 
@@ -83,100 +78,37 @@ def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
     plt.close()
 
 
-def plot_contourf_map_scandinavia_1(grib_file, vmin, vmax, outfile, date, title):
-    ds = mv.read(grib_file)
-    #ds = mv.read(data=ds, param='thpb')
-    #ds = mv.Fieldset(path='/home/korpinen/Downloads/_mars-webmars-private-svc-blue-008-6fe5cac1a363ec1525f54343b6cc9fd8-51dOBi.grib')
-    #lats = mv.nx(ds)  # returns a numPy array
-    #lons = mv.ny(ds)  # returns a numPy array
-    vals = mv.values(ds)
-    print(mv.grib_get(ds, ['shortName', 'level', 'paramId']))
-
-    #tstm = ds.select
-    tstm = ds["tstm"]
-    #print(mv.minvalue(tstm), mv.maxvalue(tstm))
-
-    #tstm = mv.read(data=ds, param="3060")
-    u = mv.read(data=ds, param="10u")
-    v = mv.read(data=ds, param="10v")
-    #spd = mv.sqrt(u * u + v * v)
-    my_view = mv.geoview(map_area_definition="CORNERS", map_projection="polar_stereographic")
-    # set up the coastlines
-    my_coast = mv.mcoast(map_coastline_land_shade="ON", map_coastline_land_shade_colour="CREAM")
-    cont = mv.mcont(legend="on",
-                    contour="off",
-                    contour_level_selection_type="level_list",
-                    contour_level_list=[0, 0.2, 0.5, 0.8, 1],
-                    contour_label="off",
-                    contour_shade="on",
-                    contour_shade_colour_method="gradients",
-                    contour_shade_method="area_fill",
-                    contour_gradients_colour_list=["RGB(0.1532,0.1187,0.5323)",
-                                                    "RGB(0.5067,0.7512,0.8188)",
-                                                    "RGB(0.9312,0.9313,0.9275)",
-                                                    "RGB(0.9523,0.7811,0.3104)",
-                                                    "RGB(0.594,0.104,0.104)",],
-                    contour_gradients_step_list=20)
-    # define output
-    mv.setoutput(mv.pdf_output(output_name=outfile))
-    view = mv.geoview(map_area_definition="corners",
-                      area=[25, -60, 75, 60])
-    mv.plot(view, tstm[0], mv.mcont(contour_automatic_setting='ecmwf', legend='on'))
-
-    # plt.savefig(outfile, pad_inches=0, dpi=1200)
-
 def plot_contourf_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
-    #ds = xr.open_dataset(grib_file)
-    ds = pg.open(grib_file)
-    ds.seek(0)
+    ds = xr.load_dataset(grib_file)
     for v in ds:
-        print(v)
-        selected_grb = ds.select(name='Thunderstorm probability')[0]
-        data, lats, lons = selected_grb.data()
-        #lons[lons > 180] = lons[lons > 180] - 360
-
-        grid_lon, grid_lat = [lons, lats]
-
-        proj = cartopy.crs.LambertConformal()
-
-        ax = plt.axes(projection=proj)
-        ax.set_extent([5, 35, 52, 72])
-        #ax.gridlines()
-        x, y = [grid_lon, grid_lat]
-        cm = ax.pcolormesh(y, x, data, transform=cartopy.crs.PlateCarree())  # , shading='auto', vmin=vmin, vmax=vmax, cmap='OrRd')
-        ax.add_feature(cartopy.feature.COASTLINE)
-        ax.add_feature(cartopy.feature.BORDERS)
-        plt.title(f"Propability of Thunder, {date}")
-        plt.colorbar(cm, fraction=0.046, pad=0.04, orientation="horizontal")
-        plt.show()
-
-        """
         data = ds[v].data
-        print(ds.keys())
-        t = ds[v].plot()
-        proj = cartopy.crs.PlateCarree()
-        ax = plt.axes(projection=proj)
-        ax.set_extent([5, 35, 52, 72])
-        #ax.add_feature(cartopy.feature.COASTLINE)
-        #ax.add_feature(cartopy.feature.BORDERS)
-        #ax.add_feature(cartopy.feature.OCEAN)
-        #ax.add_feature(cartopy.feature.LAND)
-        # ax.add_feature(cartopy.feature.LAKES)
-        # ax.add_feature(cartopy.feature.RIVERS)
-        ax.gridlines()
-        x, y = [grid_lon, grid_lat]
+        lats, lons = ds['latitude'].data, ds['longitude'].data
+        lons[lons > 180] = lons[lons > 180] - 360
+        proj = cartopy.crs.LambertConformal(central_latitude=int(np.mean(lats)),
+                                            central_longitude=int(np.mean(lons)),
+                                            standard_parallels=(25, 25))
         for i in range(len(data)):
-            d = data[i]
-            #d[d <= 0.00001] = np.nan
-            cm = ax.pcolormesh(d, transform=cartopy.crs.NorthPolarStereo())# , shading='auto', vmin=vmin, vmax=vmax, cmap='OrRd')
+            ax = plt.axes(projection=proj)
+            ax.set_extent([5, 35, 52, 72])
+            ax.gridlines()
             ax.add_feature(cartopy.feature.COASTLINE)
             ax.add_feature(cartopy.feature.BORDERS)
-            plt.title(f"Propability of Thunder, {date}")
-            plt.colorbar(cm, fraction=0.046, pad=0.04, orientation="horizontal")
-            plt.show()
-            #plt.savefig(outfile, pad_inches=0, dpi=1200)
-    """
-    
+            ax.add_feature(cartopy.feature.OCEAN)
+            ax.add_feature(cartopy.feature.LAND)
+            ax.add_feature(cartopy.feature.LAKES)
+            ax.add_feature(cartopy.feature.RIVERS)
+            d = data[i]
+            d[d <= 0.00001] = np.nan
+            cm = ax.pcolormesh(lons, lats, d, transform=cartopy.crs.PlateCarree(), shading='auto', vmin=vmin, vmax=vmax, cmap='OrRd')
+            plt.title(f"Propability of Thunder, {date} forecast {i}h")
+            plt.colorbar(cm, fraction=0.046, pad=0.04, orientation="horizontal", ax=ax)
+            idx = outfile.index("h.")
+            forecast_outfile = outfile[:idx] + f"{i}" + outfile[idx:]
+            plt.savefig(forecast_outfile, bbox_inches='tight', pad_inches=0.2, dpi=800)
+            plt.close()
+            lol
+
+
 def plot_only_colorbar(vmin,vmax,units,outfile,cmap):
     fig = plt.figure(figsize=(8, 1))
     ax1 = fig.add_axes([0.05, 0.80, 0.9, 0.15])

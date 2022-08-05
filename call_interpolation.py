@@ -858,27 +858,22 @@ class PlotData:
         if not os.path.exists("figures/jumpiness_ratio/"):
             os.makedirs("figures/jumpiness_ratio/")
         """
-        #interpolated_advection, quantity1_min, quantity1_max, timestamp1, mask_nodata1, nodata1, longitudes, latitudes = read(self.options.output_data, read_coordinates=True)
         outdir = self.generate_dirs('figures', 'fields')
-        # Defining mins and max in all data
+        # Defining min and max in all data
         R_min = self.interpolated_advection.min()
         if (self.options.parameter == 'precipitation_1h_bg'):
             R_max = 3
-            added_hours = 1
         elif (self.options.parameter == '2t'):
             R_max = 280
         # plotting interpolated_advection fields
         else:
-            added_hours = 0
             R_max = self.interpolated_advection.max()
-        #for n in (list(range(0, 9))):
         # PLOTTING AND SAVING TO FILE
-        title = self.options.parameter
+        title = self.options.parameter.replace("_", " ")
         datetitle, dateformat = self.generate_date(0)
-        fig_name = self.generate_file_name(outdir, "".join(["Test1_", title, "_", dateformat, "_h.png"]))
-        # diagnostics_functions.plot_imshow(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title)
-        #diagnostics_functions.plot_imshow_on_map(self.interpolated_advection[n, :, :], R_min, R_max, outfile, "jet", title, self.longitudes, self.latitudes)
+        fig_name = self.generate_file_name(outdir, "".join(["fields_", title, "_", dateformat, "_h.png"]))
         diagnostics_functions.plot_contourf_map_scandinavia(self.options.output_data, R_min, R_max, fig_name, datetitle, title)
+        #diagnostics_functions.plot_imshow_map_scandinavia(self.options.output_data, R_min, R_max, fig_name, datetitle, title)
 
     def plot_all(self):
 
@@ -902,7 +897,7 @@ class PlotData:
             # Plotting LAPS field as it is in the uncombined file
             title = "OBS (LAPS/PPN) "
             outfile = outdir + "image_array_obs_data.png"
-            diagnostics_functions.plot_imshow_on_map(image_array_obs_data[0, :, :], 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
+            #diagnostics_functions.plot_imshow_map_scandinavia(image_array_obs_data[0, :, :], 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
 
         # Plot unmodified background data if it exists
         if self.options.background_data != None:
@@ -911,7 +906,7 @@ class PlotData:
             quantity_plot = self.options.parameter
             title = "MNWC 0hours"
             outfile = outdir + "image_array_MNWC_0hours.png"
-            diagnostics_functions.plot_imshow_on_map(image_array_plot[0, :, :], 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
+            #diagnostics_functions.plot_imshow_map_scandinavia(image_array_plot[0, :, :], 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
             if 'mask_nodata_obs_data' in locals():
                 # Read radar composite field used as mask for Finnish data. Lat/lon info is not stored in radar composite HDF5 files, but these are the same! (see README.txt)
                 weights_bg = read_background_data_and_make_mask(image_file=self.options.detectability_data,
@@ -921,17 +916,16 @@ class PlotData:
                 weights_obs = 1 - weights_bg
                 title = "weights 0h"
                 outfile = outdir + "image_array_weights_0h.png"
-                diagnostics_functions.plot_imshow_on_map(weights_bg, 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
+                #diagnostics_functions.plot_imshow_map_scandinavia(weights_bg, 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
                 if 'weights_obs_extrap' in locals():
                     weights_obs_all = np.concatenate((weights_obs[np.newaxis, :], self.weights_obs_extrap), axis=0)
                     # fig, ax = plt.subplots(1,weights_obs_all.shape[0])
                     for im_no in np.arange(weights_obs_all.shape[0]):
                         title = f"weights {im_no}h"
                         outfile = outdir + f"image_array_weights_{im_no}h.png"
-                        diagnostics_functions.plot_imshow_on_map(weights_obs_all[im_no, :, :], 0, 1, outfile, "jet", title,
-                                                                 self.longitudes, self.latitudes)
+                        #diagnostics_functions.plot_imshow_map_scandinavia(weights_obs_all[im_no, :, :], 0, 1, outfile, "jet", title, self.longitudes, self.latitudes)
 
-                        # ax[0,im_no].diagnostics_functions.plot_imshow_on_map(weights_obs_all[im_no,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
+                        # ax[0,im_no].diagnostics_functions.plot_imshow_map_scandinavia(weights_obs_all[im_no,:,:],0,1,outfile,"jet",title,longitudes,latitudes)
 
         # Plot dynamic_nwc_data if it exists
         if self.options.dynamic_nwc_data != None:

@@ -1,84 +1,39 @@
 import numpy as np
 import xarray as xr
-import pygrib as pg
-import numpy.ma as ma
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import matplotlib.pyplot as plt
+from mpl_toolkits.basemap import Basemap
 import matplotlib.colors as colors
-from matplotlib.colors import LinearSegmentedColormap
 import cartopy
 
 
-########### DEBUGGING FUNCTIONS #############
-def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
-    plt.imshow(temps,cmap=cmap,vmin=vmin,vmax=vmax,origin="lower")
-    #plt.axis('off')
-    plt.colorbar()
-    plt.title(title)
-    plt.tight_layout(pad=0.)
-    # plt.xticks([])
-    # plt.yticks([])
-    plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
-    plt.close()
+def plot_imshow_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
+    "Use for plotting when projection is Polster/Polar_stereografic"
+    ds = xr.load_dataset(grib_file)
+    for v in ds:
+        data = ds[v].data
+        lat_ts, lat0, lon0 = 52, 63, 19
 
+        m = Basemap(width=1900000, height=2100000,
+                    resolution='l', projection='laea',
+                    lat_ts=lat_ts, lat_0=lat0, lon_0=lon0)
+        m.drawcountries(linewidth=1.0)
+        m.drawcoastlines(1.0)
 
-def plot_imshow_on_map(temps,vmin,vmax,outfile,cmap,title,longitudes,latitudes):
-    # For those longitudes that are over 180 degrees, reduce 360 degrees from them
-    longitudes[longitudes > 180] = longitudes[longitudes > 180] - 360
-
-    grid_lon, grid_lat = [longitudes, latitudes]
-    
-    proj = cartopy.crs.LambertConformal(central_latitude = int(np.mean(latitudes)), 
-                             central_longitude = int(np.mean(longitudes)), 
-                             standard_parallels = (25, 25))
-    #proj = cartopy.crs.PlateCarree()
-    #ncolors = 256
-    
-    temps[np.where(temps<=0.1)] = None
-    ncolors = 128
-    color_array = plt.get_cmap('gist_rainbow')(range(ncolors))
-    # change alpha values
-    color_array[:,-1] = np.linspace(0.0,1.0,ncolors)
-    # create a colormap object
-    # register this new colormap with matplotlib
-    map_object = LinearSegmentedColormap.from_list(name='rainbow_alpha',colors=color_array)
-    plt.register_cmap(cmap=map_object)
-    ax = plt.axes(projection = proj)
-    # x, y = ax(*[grid_lon, grid_lat])
-    x, y = [grid_lon, grid_lat]
-    cm = ax.pcolormesh(x, y, temps, shading='auto', vmin=vmin, vmax=vmax, cmap=cmap, transform=cartopy.crs.PlateCarree())
-    ax.coastlines('50m')
-    ax.add_feature(cartopy.feature.OCEAN)
-    ax.add_feature(cartopy.feature.LAND, edgecolor='black')
-    ax.add_feature(cartopy.feature.LAKES, edgecolor='black')
-    ax.add_feature(cartopy.feature.RIVERS)
-    ax.gridlines()
-    ax.set_title(title)
-    plt.colorbar(cm, fraction = 0.046, pad = 0.04, orientation="horizontal")
-    # plt.show()
-
-    # # Transform longitudes defined in 0...360 to -180...180
-    # longitudes[longitudes>180] = (180-longitudes[(longitudes>180)]%180)
-    # grid_lon, grid_lat = [longitudes, latitudes]
-    # m = Basemap(projection='cyl', llcrnrlon=longitudes.min(),urcrnrlon=longitudes.max(),llcrnrlat=latitudes.min(),urcrnrlat=latitudes.max(),resolution='c')
-    # x, y = m(*[grid_lon, grid_lat])
-    # m.pcolormesh(x,y,temps,shading='flat',cmap=cmap,vmin=vmin,vmax=vmax)
-    # m.colorbar(location='right')
-    # m.drawcoastlines()
-    # m.drawmapboundary()
-    # m.drawparallels(np.arange(-90.,120.,10.),labels=[1,0,0,0])
-    # m.drawmeridians(np.arange(-180.,180.,10.),labels=[0,0,0,1])
-    
-    # plt.title(title)
-    # plt.tight_layout(pad=0.)
-    # plt.xticks([])
-    # plt.yticks([])
-    plt.savefig(outfile,bbox_inches='tight', pad_inches=0, dpi=1200)
-    plt.close()
+        for i in range(len(data)):
+            d = data[i]
+            d[d <= 0.00001] = np.nan
+            cm = m.imshow(d, cmap='Blues', vmin=vmin, vmax=vmax, origin="lower", zorder=1)
+            plt.title(f"{title}, {date} forecast {i}h")
+            plt.colorbar(cm, fraction=0.046, pad=0.04, orientation="horizontal")
+            idx = outfile.index("h.")
+            forecast_outfile = outfile[:idx] + f"{i}" + outfile[idx:]
+            plt.savefig(forecast_outfile, bbox_inches='tight', pad_inches=0.2, dpi=800)
+            plt.close()
 
 
 def plot_contourf_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
+    "Use for plotting when projection is Lambert etc."
     ds = xr.load_dataset(grib_file)
     for v in ds:
         data = ds[v].data
@@ -87,6 +42,7 @@ def plot_contourf_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
         proj = cartopy.crs.LambertConformal(central_latitude=int(np.mean(lats)),
                                             central_longitude=int(np.mean(lons)),
                                             standard_parallels=(25, 25))
+
         for i in range(len(data)):
             ax = plt.axes(projection=proj)
             ax.set_extent([5, 35, 52, 72])
@@ -99,14 +55,28 @@ def plot_contourf_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
             ax.add_feature(cartopy.feature.RIVERS)
             d = data[i]
             d[d <= 0.00001] = np.nan
-            cm = ax.pcolormesh(lons, lats, d, transform=cartopy.crs.PlateCarree(), shading='auto', vmin=vmin, vmax=vmax, cmap='OrRd')
-            plt.title(f"Propability of Thunder, {date} forecast {i}h")
+            cm = ax.pcolormesh(lons, lats, d, transform=cartopy.crs.PlateCarree(),
+                               shading='auto', vmin=vmin, vmax=vmax, cmap='OrRd')
+            plt.title(f"{title}, {date} forecast +{i}h")
             plt.colorbar(cm, fraction=0.046, pad=0.04, orientation="horizontal", ax=ax)
             idx = outfile.index("h.")
             forecast_outfile = outfile[:idx] + f"{i}" + outfile[idx:]
             plt.savefig(forecast_outfile, bbox_inches='tight', pad_inches=0.2, dpi=800)
             plt.close()
-            lol
+
+
+########### DEBUGGING FUNCTIONS #############
+def plot_imshow(temps,vmin,vmax,outfile,cmap,title):
+    plt.imshow(temps,cmap=cmap,vmin=vmin,vmax=vmax,origin="lower")
+    #plt.axis('off')
+    plt.colorbar()
+    plt.title(title)
+    plt.tight_layout(pad=0.)
+    # plt.xticks([])
+    # plt.yticks([])
+    plt.show()
+    plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
+    plt.close()
 
 
 def plot_only_colorbar(vmin,vmax,units,outfile,cmap):
@@ -128,4 +98,3 @@ def plot_verif_scores(fc_lengths,verif_scores,labels,outfile,title,y_ax_title):
     plt.ylabel(y_ax_title)
     plt.savefig(outfile,bbox_inches='tight', pad_inches=0)
     plt.close()
-

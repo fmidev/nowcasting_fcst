@@ -500,7 +500,7 @@ def main():
             added_hours = 1
         else:
             added_hours = 0
-        image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data,added_hours)
+        image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2 = read(options.model_data, added_hours)
         quantity2 = options.parameter
         # nodata values are always taken from the model field. Presumably these are the same.
         nodata = nodata2
@@ -579,7 +579,7 @@ def main():
         #         timestampx1 = timestampx1[1:]
         #         mask_nodatax1 = mask_nodatax1[1:]
         
-    # Loading in extrapolated_data. Currently supports only PPN data, where first value in data is the the 1h forecast, not analysis!
+    # Loading in extrapolated_data. Currently, supports only PPN data, where first value in data is the 1h forecast, not analysis!
     if options.extrapolated_data!=None:
         if (options.parameter == 'precipitation_1h_bg'):
             added_hours = 1
@@ -786,16 +786,15 @@ def main():
         interpolated_advection[np.where(interpolated_advection>prec_max)] = prec_max
     CC_max = 1
     if (options.parameter == 'total_cloud_cover'):
-        interpolated_advection[np.where(interpolated_advection>CC_max)] = CC_max
+        interpolated_advection[np.where(interpolated_advection > CC_max)] = CC_max
     RH_max = 100
     if (options.parameter == '2r'):
-        interpolated_advection[np.where(interpolated_advection>RH_max)] = RH_max
+        interpolated_advection[np.where(interpolated_advection > RH_max)] = RH_max
     POT_max = 100
+    POT_min = 0
     if (options.parameter == 'pot'):
-        interpolated_advection[np.where(interpolated_advection>POT_max)] = POT_max
-        POT_min = 0
-    if (options.parameter == 'pot'):
-        interpolated_advection[np.where(interpolated_advection<POT_min)] = POT_min
+        interpolated_advection[np.where(interpolated_advection > POT_max)] = POT_max
+        interpolated_advection[np.where(interpolated_advection < POT_min)] = POT_min
 
 
     if (options.model_data!=None):    
@@ -874,9 +873,9 @@ class PlotData:
             R_max = self.interpolated_advection.max()
         #for n in (list(range(0, 9))):
         # PLOTTING AND SAVING TO FILE
-        title = "Probability of thunder"
+        title = self.options.parameter
         datetitle, dateformat = self.generate_date(0)
-        fig_name = self.generate_file_name(outdir, "".join(["field_", title, "_", dateformat, "_h.png"]))
+        fig_name = self.generate_file_name(outdir, "".join(["Test1_", title, "_", dateformat, "_h.png"]))
         # diagnostics_functions.plot_imshow(interpolated_advection[n,:,:],R_min,R_max,outfile,"jet",title)
         #diagnostics_functions.plot_imshow_on_map(self.interpolated_advection[n, :, :], R_min, R_max, outfile, "jet", title, self.longitudes, self.latitudes)
         diagnostics_functions.plot_contourf_map_scandinavia(self.options.output_data, R_min, R_max, fig_name, datetitle, title)

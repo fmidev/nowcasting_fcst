@@ -275,7 +275,7 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
     raise ValueError("You need to explicitly pass a predictability value to this function!")
   # Do the motion vector calculation for each time step separately (using whole forecast length, PREDICTABILITY)
   all_fcst_lengths = list(range(1,predictability+1)) # range(1,(obsfields.shape[0])) Here, first forecast length has a non-zero coefficient and the last forecast length coefficient of one (only modelfield is used).
-  n_interp_frames = len(all_fcst_lengths) # predictability is defined in hours
+  n_interp_frames = len(all_fcst_lengths) + 1 # predictability is defined in hours
   # Here, a normalized half sigmoid function is used instead of linear
   # tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
   tws = sigmoid_array(np.linspace(sigmoid_steepness,0,n_interp_frames))/0.5

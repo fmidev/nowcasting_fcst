@@ -13,14 +13,13 @@ def plot_imshow_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
     for v in ds:
         data = ds[v].data
         lat_ts, lat0, lon0 = 52, 63, 19
-
-        m = Basemap(width=1900000, height=2100000,
-                    resolution='l', projection='laea',
-                    lat_ts=lat_ts, lat_0=lat0, lon_0=lon0)
-        m.drawcountries(linewidth=1.0)
-        m.drawcoastlines(1.0)
-
         for i in range(len(data)):
+            m = Basemap(width=1900000, height=2100000,
+                        resolution='l', projection='laea',
+                        lat_ts=lat_ts, lat_0=lat0, lon_0=lon0)
+            m.drawcountries(linewidth=1.0)
+            m.drawcoastlines(1.0)
+
             d = data[i]
             d[d <= 0.00001] = np.nan
             cm = m.imshow(d, cmap='Blues', vmin=vmin, vmax=vmax, origin="lower", zorder=1)

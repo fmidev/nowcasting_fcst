@@ -275,10 +275,11 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
     raise ValueError("You need to explicitly pass a predictability value to this function!")
   # Do the motion vector calculation for each time step separately (using whole forecast length, PREDICTABILITY)
   all_fcst_lengths = list(range(1,predictability+1)) # range(1,(obsfields.shape[0])) Here, first forecast length has a non-zero coefficient and the last forecast length coefficient of one (only modelfield is used).
-  n_interp_frames = len(all_fcst_lengths) + 1 # predictability is defined in hours
+  n_interp_frames = len(all_fcst_lengths) # predictability is defined in hours
   # Here, a normalized half sigmoid function is used instead of linear
-  # tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
-  tws = sigmoid_array(np.linspace(sigmoid_steepness,0,n_interp_frames))/0.5
+  #tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
+  #tws = sigmoid_array(np.linspace(sigmoid_steepness, -0.4, n_interp_frames))/0.5
+  tws = logistic_growth_function(np.linspace(sigmoid_steepness, -0.7, n_interp_frames)) / 0.5
 
   # Initializing the result list with the modelfields.shape and obsfield[0] data
   shapes = list(modelfields.shape)
@@ -341,27 +342,6 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
   return R_interp
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # This function smooths out the image and turns the data values to ubyte type for the motion vector calculation
 def _filtered_ubyte_image(I, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=False):
   I = I.copy()
@@ -374,14 +354,18 @@ def _filtered_ubyte_image(I, mask_nodata, R_min, R_max, filter_stddev=1.0, logtr
     R_min = log(R_min)
     R_max = log(R_max)
   # Scale actual data points to have float values between 128...255. The missing values are assigned with the value of 0.
-  I[MASK]  = 128.0 + (I[MASK] - R_min) / (R_max - R_min) * 127.0
+  I[MASK] = 128.0 + (I[MASK] - R_min) / (R_max - R_min) * 127.0
   I[~MASK] = 0.0
   
   I = I.astype(ubyte)
   I = gaussian_filter(I, sigma=filter_stddev)
-
   return I
+
 
 # Sigmoid function
 def sigmoid_array(x):
-    return 1/ (1 + np.exp(-x))
+    return 1 / (1 + np.exp(-x))
+
+
+def logistic_growth_function(x):
+    return 1 / (1 + np.exp(-0.5*x))

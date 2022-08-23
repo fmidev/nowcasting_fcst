@@ -9,7 +9,9 @@ import cartopy
 
 def plot_imshow_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
     "Use for plotting when projection is Polster/Polar_stereografic"
+    # Only for Scandinavian domain
     ds = xr.load_dataset(grib_file)
+    cmap = 'RdYlGn_r' # RdBl_r  'Blues' 'Jet' 'RdYlGn_r'
     for v in ds:
         data = ds[v].data
         lat_ts, lat0, lon0 = 52, 63, 19
@@ -21,8 +23,8 @@ def plot_imshow_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
             m.drawcoastlines(1.0)
 
             d = data[i]
-            d[d <= 0.00001] = np.nan
-            cm = m.imshow(d, cmap='Blues', vmin=vmin, vmax=vmax, origin="lower", zorder=1)
+            d[d <= 0.01] = np.nan
+            cm = m.imshow(d, cmap=cmap, vmin=vmin, vmax=vmax, origin="lower", zorder=1)
             plt.title(f"{title}, {date} forecast {i}h")
             plt.colorbar(cm, fraction=0.046, pad=0.04, orientation="horizontal")
             idx = outfile.index("h.")

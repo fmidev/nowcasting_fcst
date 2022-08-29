@@ -12,8 +12,6 @@ import time
 import cv2
 from eccodes import *
 from scipy.ndimage import gaussian_filter, distance_transform_edt
-import matplotlib.pyplot as plt
-import diagnostics_functions
 # import hiisi
 # from scipy.misc import imresize -> from PIL imort Image (imresize FEATURE IS NOT SUPPORTED ATM)
 
@@ -1167,5 +1165,9 @@ if __name__ == '__main__':
         options.parameter = 'precipitation_1h_bg'
     elif options.parameter in ['cc','lcc','mcc','hcc']:
         options.parameter = 'total_cloud_cover'
+
+    if options.plot_diagnostics == 'yes':
+        import matplotlib.pyplot as plt
+        import diagnostics_functions
 
     main()

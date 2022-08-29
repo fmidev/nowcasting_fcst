@@ -11,8 +11,7 @@ import os
 import time
 import cv2
 from eccodes import *
-from scipy.ndimage.filters import gaussian_filter
-from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage import gaussian_filter, distance_transform_edt
 # import hiisi
 # from scipy.misc import imresize -> from PIL imort Image (imresize FEATURE IS NOT SUPPORTED ATM)
 

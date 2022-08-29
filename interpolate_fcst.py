@@ -279,8 +279,8 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
   # Here, a normalized half sigmoid function is used instead of linear
   #tws = 1.0*arange(1, n_interp_frames + 1) / (n_interp_frames + 1)
   #tws = sigmoid_array(np.linspace(sigmoid_steepness, 0, n_interp_frames))/0.5
-  tws = sigmoid_array(np.linspace(sigmoid_steepness, -0.4, n_interp_frames))/0.5
-  #tws = logistic_growth_function(np.linspace(sigmoid_steepness, -0.7, n_interp_frames)) / 0.5
+  #tws = sigmoid_array(np.linspace(sigmoid_steepness, -0.4, n_interp_frames))/0.5
+  tws = logistic_growth_function(np.linspace(sigmoid_steepness, -0.7, n_interp_frames)) / 0.5
 
   # Initializing the result list with the modelfields.shape and obsfield[0] data
   shapes = list(modelfields.shape)

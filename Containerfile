@@ -7,7 +7,7 @@ RUN dnf -y install dnf-plugins-core && \
     dnf -y module enable python38 && \
     dnf config-manager --set-enabled codeready-builder-for-rhel-8-x86_64-rpms && \
     dnf config-manager --setopt="epel.exclude=eccodes*" --save && \
-    dnf -y --setopt=install_weak_deps=False install python38-pip libSM libXrender libXext eccodes && \
+    dnf -y --setopt=install_weak_deps=False install python38-pip libSM libXrender libXext libglvnd-devel eccodes && \
     dnf -y clean all && rm -rf /var/cache/dnf
 
 COPY . /nowcasting_fcst

@@ -11,8 +11,7 @@ import os
 import time
 import cv2
 from eccodes import *
-from scipy.ndimage.filters import gaussian_filter
-from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage import gaussian_filter, distance_transform_edt
 import matplotlib.pyplot as plt
 import diagnostics_functions
 # import hiisi

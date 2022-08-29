@@ -8,8 +8,11 @@ import cartopy
 
 
 def plot_imshow_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
-    "Use for plotting when projection is Polster/Polar_stereografic"
-    # Only for Scandinavian domain
+    """Use for plotting when projection is Polster/Polar_stereografic
+
+    Only for Scandinavian domain.
+    For xarray to work with grib-files, cfgrib must be installed
+    """
     ds = xr.load_dataset(grib_file)
     cmap = 'RdYlGn_r' # RdBl_r  'Blues' 'Jet' 'RdYlGn_r'
     for v in ds:
@@ -34,7 +37,10 @@ def plot_imshow_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
 
 
 def plot_contourf_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
-    "Use for plotting when projection is Lambert etc."
+    """Use for plotting when projection is Lambert etc.
+
+    For xarray to work with grib-files, cfgrib must be installed
+    """
     ds = xr.load_dataset(grib_file)
     for v in ds:
         data = ds[v].data

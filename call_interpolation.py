@@ -122,6 +122,17 @@ def read_nc(image_nc_file,added_hours):
 
 
 def read_grib(image_grib_file,added_hours,read_coordinates):
+    def read_leadtime(gh):
+       tr = codes_get_long(gh, "indicatorOfUnitOfTimeRange")
+       ft = codes_get_long(gh, "forecastTime")
+       if tr == 1:
+           return datetime.timedelta(hours=ft)
+       if tr == 0:
+           return datetime.timedelta(minutes=ft)
+
+       raise Exception("Unknown indicatorOfUnitOfTimeRange: {:%d}".format(tr))
+
+
     # check comments from read_nc()
     dtime = []
     tempsl = []
@@ -136,11 +147,9 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
 
             ni = codes_get_long(gh, "Ni")
             nj = codes_get_long(gh, "Nj")
-            forecast_time = codes_get_long(gh, "forecastTime")
             data_date = codes_get_long(gh, "dataDate")
             data_time = codes_get_long(gh, "dataTime")
-
-            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + datetime.timedelta(hours=forecast_time)
+            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + read_leadtime(gh)
             dtime.append(forecast_time)
 
             values = np.asarray(codes_get_values(gh))

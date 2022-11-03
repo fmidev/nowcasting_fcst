@@ -14,6 +14,42 @@ from numpy import arange, dstack, float32, isfinite, log, logical_and, meshgrid,
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+
+# Apply farneback optical flow on cpu or gpu
+
+def optical_flow(R1_f, R2_f, farneback_params):
+
+    if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+       R1_f_gpu = cv2.cuda_GpuMat(R1_f)
+       R2_f_gpu = cv2.cuda_GpuMat(R2_f)
+
+       pyrScale = farneback_params[0]
+       numLevels = farneback_params[1]
+       winSize = farneback_params[2]
+       numIters = farneback_params[3]
+       polyN = farneback_params[4]
+       polySigma = farneback_params[5]
+       flags = farneback_params[6]
+
+       polyN = 7
+
+       gpu_flow = cv2.cuda_FarnebackOpticalFlow.create(numLevels,
+                                                       pyrScale,
+                                                       False,
+                                                       winSize,
+                                                       numIters,
+                                                       polyN,
+                                                       polySigma,
+                                                       flags)
+
+       gpu_flow = cv2.cuda_FarnebackOpticalFlow.calc(gpu_flow, R1_f_gpu, R2_f_gpu, None)
+       return gpu_flow.download()
+
+    else:
+      return cv2.calcOpticalFlowFarneback(R1_f, R2_f, None, *farneback_params)
+
+
+
 def linear(obsfields, modelfields, mask_nodata, predictability, seconds_between_steps, missingval):
   """Temporal interpolation between two precipitation fields by using advection 
   field. The motion is estimated by using the Farneback algorithm implemented 
@@ -186,12 +222,8 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   R1_f = _filtered_ubyte_image(R1, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=logtrans)
   R2_f = _filtered_ubyte_image(R2, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=logtrans)
   
-  if int(cv2.__version__.split('.')[0]) == 2:
-    VF = cv2.calcOpticalFlowFarneback(R1_f, R2_f, *farneback_params)
-    VB = cv2.calcOpticalFlowFarneback(R2_f, R1_f, *farneback_params)
-  else:
-    VF = cv2.calcOpticalFlowFarneback(R1_f, R2_f, None, *farneback_params)
-    VB = cv2.calcOpticalFlowFarneback(R2_f, R1_f, None, *farneback_params)
+  VF = optical_flow(R1_f, R2_f, *farneback_params)
+  VB = optical_flow(R2_f, R1_f, *farneback_params)
     
   # For actual interpolation, original vectors V1 and V2 are used!
   for tw in tws:
@@ -311,13 +343,8 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
       # Here changing to float to ubyte type, for AMV calculation. ubyte is an 8-bit unsigned integral data type (http://x10.sourceforge.net/x10doc/2.3.0/x10/lang/UByte.html), the 8-bit conversion of the data is necessary for the function cv2.calcOpticalFlowFarneback. Also smearing out image as defined by https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.gaussian_filter.html
       R1_f = _filtered_ubyte_image(R1, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=logtrans)
       R2_f = _filtered_ubyte_image(R2, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=logtrans)
-
-      if int(cv2.__version__.split('.')[0]) == 2:
-        VF = cv2.calcOpticalFlowFarneback(R1_f, R2_f, *farneback_params)
-        VB = cv2.calcOpticalFlowFarneback(R2_f, R1_f, *farneback_params)
-      else:
-        VF = cv2.calcOpticalFlowFarneback(R1_f, R2_f, None, *farneback_params)
-        VB = cv2.calcOpticalFlowFarneback(R2_f, R1_f, None, *farneback_params)
+      VF = optical_flow(R1_f, R2_f, farneback_params)
+      VB = optical_flow(R2_f, R1_f, farneback_params)
       
       # For actual interpolation, original vectors V1 and V2 are used!
       R1_warped = cv2.remap(R1, W-tw*VF,       None, cv2.INTER_LINEAR)

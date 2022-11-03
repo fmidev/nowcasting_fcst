@@ -19,12 +19,13 @@ from scipy.ndimage import gaussian_filter, distance_transform_edt
 
 ### FUNCTIONS USED ###
 def read(image_file,added_hours=0,read_coordinates=False):
-    print(f"Reading {image_file}")
     if image_file.endswith(".nc"):
+        print(f"Reading {image_file}")
         return read_nc(image_file,added_hours)
     elif image_file.endswith(".grib2"):
         return read_grib(image_file,added_hours,read_coordinates)
     elif image_file.endswith(".h5"):
+        print(f"Reading {image_file}")
         return read_HDF5(image_file,added_hours)
     else:
         sys.exit("unsupported file type for file: %s" % (image_file))
@@ -122,6 +123,7 @@ def read_nc(image_nc_file,added_hours):
 
 
 def read_grib(image_grib_file,added_hours,read_coordinates):
+    start = time.time()
     def read_leadtime(gh):
        tr = codes_get_long(gh, "indicatorOfUnitOfTimeRange")
        ft = codes_get_long(gh, "forecastTime")
@@ -151,7 +153,6 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
             data_time = codes_get_long(gh, "dataTime")
             forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + read_leadtime(gh)
             dtime.append(forecast_time)
-
             values = np.asarray(codes_get_values(gh))
             tempsl.append(values.reshape(nj, ni))
             if read_coordinates:
@@ -173,19 +174,25 @@ def read_grib(image_grib_file,added_hours,read_coordinates):
 
     nodata = 9999
 
+    temps_min = None
+    temps_max = None
+
     mask_nodata = np.ma.masked_where(temps == nodata,temps)
-    if len(temps[np.where(~np.ma.getmask(mask_nodata))])>0:
-        temps_min = temps[np.where(~np.ma.getmask(mask_nodata))].min()
-        temps_max = temps[np.where(~np.ma.getmask(mask_nodata))].max()
-    else:
-        print("input " + image_grib_file + " contains only missing data!")
-        temps_min = nodata
-        temps_max = nodata
+    if options.plot_diagnostics == "yes":
+        if len(temps[np.where(~np.ma.getmask(mask_nodata))])>0:
+            temps_min = temps[np.where(~np.ma.getmask(mask_nodata))].min()
+            temps_max = temps[np.where(~np.ma.getmask(mask_nodata))].max()
+        else:
+            print("input " + image_grib_file + " contains only missing data!")
+            temps_min = nodata
+            temps_max = nodata
+
     if type(dtime) == list:
         dtime = [(i+datetime.timedelta(hours=added_hours)) for i in dtime]
     else:
         dtime = dtime+datetime.timedelta(hours=added_hours)
 
+    print("Read {} in {:.2f} seconds".format(image_grib_file, time.time() - start))
     return temps, temps_min, temps_max, dtime, mask_nodata, nodata, longitudes, latitudes
 
 
@@ -514,7 +521,7 @@ def main():
         if (np.sum((image_array2 != nodata2) & (image_array2 != None))==0):
             raise ValueError("Model datafile contains only missing data!")
             del (image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2)
-    elif (options.parameter!='precipitation_1h_bg') & (options.model_data==None):
+    elif (options.parameter!='precipitation_1h_bg') & (options.model_data==None) & (options.parameter!='rainrate_15min_bg'):
         raise NameError("Model datafile needs to be given as an argument if not precipitation!")
     
     # Read in observation data (Time stamp is analysis time!)
@@ -602,7 +609,7 @@ def main():
         #     timestampx2 = timestamp2[1:(len(timestampx2)+1)]
         
     # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is precipitation, combine them spatially by using mask
-    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter == 'precipitation_1h_bg':
+    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter in ['precipitation_1h_bg', 'rainrate_15min_bg']:
         weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
             # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data
@@ -633,7 +640,7 @@ def main():
                 R_min_nwc = min(image_arrayx1.min(),image_arrayx3.min())
                 R_max_nwc = max(image_arrayx1.max(),image_arrayx3.max())
                 # Code only supports precipitation extrapolation data (PPN). Using other variables will cause an error. predictability/R_min/sigmoid_steepness are variable-dependent values! Here predictability is len(timestampx2) and not len(timestampx2)+1! -> last timestep of image_arrayx2 recieves a weight 0! 
-                if (options.parameter == "precipitation_1h_bg"):
+                if options.parameter in ["precipitation_1h_bg", "rainrate_15min_bg"]:
                     if nodata==None:
                         nodata = nodatax1
                     image_arrayx1 = interpolate_fcst.model_smoothing(obsfields=image_arrayx3, modelfields=image_arrayx1, mask_nodata=define_common_mask_for_fields(mask_nodatax1), farneback_params=fb_params, predictability=len(timestampx2), seconds_between_steps=options.seconds_between_steps, R_min=R_min_nwc, R_max=R_max_nwc, missingval=nodata, logtrans=False, sigmoid_steepness=-4.5)
@@ -650,8 +657,8 @@ def main():
         mask_nodatax1 = mask_nodatax2
         timestampx1 = timestampx2
 
-    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is NOT precipitation
-    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter != 'precipitation_1h_bg':
+    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is NOT precipitation or rainrate (currently only used for cloudcast data)
+    if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter != 'precipitation_1h_bg' and options.parameter != 'rainrate_15min_bg':
         weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
             # Finding out time steps in extrapolated_data that are also found in dynamic_nwc_data

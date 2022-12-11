@@ -41,7 +41,7 @@ def plot_contourf_map_scandinavia(grib_file, vmin, vmax, outfile, date, title):
 
     For xarray to work with grib-files, cfgrib must be installed
     """
-    ds = xr.load_dataset(grib_file)
+    ds = xr.load_dataset(grib_file,engine='cfgrib')
     for v in ds:
         data = ds[v].data
         lats, lons = ds['latitude'].data, ds['longitude'].data

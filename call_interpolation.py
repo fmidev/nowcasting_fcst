@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import interpolate_fcst
-from PlotData import PlotData
 from fileutils import read, write
 import numpy as np
 import argparse
@@ -445,6 +444,7 @@ def main():
 
     ### PLOT OUT DIAGNOSTICS FROM THE DATA ###
     if (options.plot_diagnostics == 'yes'):
+        from PlotData import PlotData
         if 'weights_obs_extrap' in locals():
             PlotData(options, image_array1, image_array2, weights_obs_extrap)
         else:

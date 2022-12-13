@@ -114,7 +114,7 @@ def read_nc(image_nc_file,added_hours):
 def read_file_from_s3(grib_file):
     uri = "simplecache::{}".format(grib_file)
 
-    return fsspec.open_local(uri, s3={'anon': True, 'client_kwargs': { 'endpoint_url':'https://lake.fmi.fi'}}) #, filecache={'cache_storage':'/tmp/'})
+    return fsspec.open_local(uri, s3={'anon': True, 'client_kwargs': { 'endpoint_url':'https://lake.fmi.fi'}})
 
 
 def read_grib(grib_file,added_hours,read_coordinates,use_as_template=False):
@@ -269,36 +269,22 @@ def write(interpolated_data,image_file,write_file,variable,predictability,t_diff
     if write_file.endswith(".nc"):
         write_nc(interpolated_data,image_file,write_file,variable,predictability,t_diff)
     elif write_file.endswith(".grib2"):
-        write_grib(interpolated_data,image_file,write_file,variable,predictability,t_diff,grib_write_options)
+        write_grib(interpolated_data,write_file,t_diff,grib_write_options)
     else:
         print("write: unsupported file type for file: %s" % (image_file))
         return
     print("wrote file '%s'" % write_file)
 
 
-def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predictability,t_diff,write_options):
+def write_grib_message(fpout,interpolated_data,t_diff,write_options):
     global GRIB_MESSAGE_TEMPLATE
     global GRIB_MESSAGE_STEP
-
-    # (Almost) all the metadata is copied from modeldata.grib2
-    try:
-        os.remove(write_grib_file)
-    except OSError as e:
-        pass
-
     assert(GRIB_MESSAGE_TEMPLATE is not None)
 
     # For 1km PPN+MNWC forecast adjust the output grib dataTime (analysis time) since the 1h leadtime is used instead of 0h. Metadata taken from MNWC 
     if t_diff == None:
         t_diff = 0
     t_diff = int(t_diff)
-
-    if write_grib_file.startswith("s3://"):
-        fpout = fsspec.open('simplecache::{}'.format(write_grib_file),
-                            'wb',
-                            s3={'anon':False, key:os.environ['S3_ACCESS_KEY_ID'], secret:os.environ['S3_SECRET_ACCESS_KEY'],client_kwargs:{'endpoint_url':'https://lake.fmi.fi'}})
-    else:
-        fpout = open(str(write_grib_file), "wb")
 
     dataDate = int(codes_get_long(GRIB_MESSAGE_TEMPLATE, "dataDate"))
     dataTime = int(codes_get_long(GRIB_MESSAGE_TEMPLATE, "dataTime")) 
@@ -354,6 +340,24 @@ def write_grib(interpolated_data,image_grib_file,write_grib_file,variable,predic
     codes_release(GRIB_MESSAGE_TEMPLATE)
     fpout.close()
 
+
+def write_grib(interpolated_data,write_grib_file,t_diff,write_options):
+    # (Almost) all the metadata is copied from modeldata.grib2
+    try:
+        os.remove(write_grib_file)
+    except OSError as e:
+        pass
+
+    fpout = None
+    if write_grib_file.startswith("s3://"):
+        openfile = fsspec.open('simplecache::{}'.format(write_grib_file),
+                            'wb',
+                            s3={'anon':False, 'key':os.environ['S3_ACCESS_KEY_ID'], 'secret':os.environ['S3_SECRET_ACCESS_KEY'],'client_kwargs':{'endpoint_url':'https://lake.fmi.fi'}})
+        with openfile as fpout:
+            write_grib_message(fpout,interpolated_data,t_diff,write_options)
+    else:
+        with open(str(write_grib_file), "wb") as fpout:
+             write_grib_message(fpout,interpolated_data,t_diff,write_options)
 
 
 def write_nc(interpolated_data,image_nc_file,write_nc_file,variable,predictability,t_diff):

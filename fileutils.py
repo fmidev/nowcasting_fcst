@@ -156,7 +156,7 @@ def read_grib(grib_file,added_hours,read_coordinates,use_as_template=False):
             data_date = codes_get_long(gh, "dataDate")
             data_time = codes_get_long(gh, "dataTime")
             lt = read_leadtime(gh)
-            forecast_time = datetime.datetime.strptime("{:d}/{:02d}".format(data_date, int(data_time/100)), "%Y%m%d/%H") + lt
+            forecast_time = datetime.datetime.strptime("{:d}/{:04d}".format(data_date, data_time), "%Y%m%d/%H%M") + lt
             dtime.append(forecast_time)
             values = np.asarray(codes_get_values(gh))
             tempsl.append(values.reshape(nj, ni))

@@ -302,7 +302,7 @@ def write_grib_message(fpout,interpolated_data,t_diff,write_options):
     is_minutes = True if GRIB_MESSAGE_STEP == datetime.timedelta(minutes=15) else False
 
     if is_minutes:
-        codes_set_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitForTimeRange", 0) # minute
+        codes_set_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitOfTimeRange", 0) # minute
         base_lt = datetime.timedelta(minutes=15)
 
     pdtn = codes_get_long(GRIB_MESSAGE_TEMPLATE, "productDefinitionTemplateNumber")
@@ -318,7 +318,11 @@ def write_grib_message(fpout,interpolated_data,t_diff,write_options):
 
         if pdtn == 8:
             lt -= base_lt
-            assert(codes_get_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitForTimeRange") == 1) # hour
+
+            tr = codes_get_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitForTimeRange")
+            trlen = codes_get_long(GRIB_MESSAGE_TEMPLATE, "lengthOfTimeRange")
+
+            assert((tr == 1 and trlen == 1) or (tr == 0 and trlen == 60))
             lt_end = analysistime + datetime.timedelta(hours=codes_get_long(GRIB_MESSAGE_TEMPLATE, "lengthOfTimeRange"))
 
             # these are not mandatory but some software uses them

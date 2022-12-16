@@ -137,6 +137,7 @@ def main():
     # Model data contains also the analysis time step!
     # ASSUMPTION USED IN THE REST OF THE CODE: model_data HAS ALWAYS ALL THE NEEDED TIME STEPS!
     # Exception! If parameter is precipitation 1h (and there is dynamic_nwc_data) no need of model_data. In this case a 9h nwc data is produced with PPN and MNWC
+    # Exception! If parameter is total cloud cover!!!
     if options.model_data!=None:
         # For accumulated model precipitation, add one hour to timestamp as it is read in as the beginning of the 1-hour period and not as the end of it
         if (options.parameter == 'precipitation_1h_bg'):
@@ -151,8 +152,8 @@ def main():
         if (np.sum((image_array2 != nodata2) & (image_array2 != None))==0):
             raise ValueError("Model datafile contains only missing data!")
             del (image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2)
-    elif (options.parameter!='precipitation_1h_bg') & (options.model_data==None) & (options.parameter!='rainrate_15min_bg'):
-        raise NameError("Model datafile needs to be given as an argument if not precipitation!")
+    #elif (options.parameter!='precipitation_1h_bg') & (options.model_data==None) & (options.parameter!='rainrate_15min_bg'):
+    #    raise NameError("Model datafile needs to be given as an argument if not precipitation!")
     
     # Read in observation data (Time stamp is analysis time!)
     if options.obs_data!=None:
@@ -221,7 +222,7 @@ def main():
         #         timestampx1 = timestampx1[1:]
         #         mask_nodatax1 = mask_nodatax1[1:]
         
-    # Loading in extrapolated_data. Currently, supports only PPN data, where first value in data is the 1h forecast, not analysis!
+    # Loading in extrapolated_data (observations based nowcast). 
     if options.extrapolated_data!=None:
         if (options.parameter == 'precipitation_1h_bg'):
             added_hours = 1
@@ -238,6 +239,8 @@ def main():
         #     timestampx2 = timestamp2[1:(len(timestampx2)+1)]
         
     # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is precipitation, combine them spatially by using mask
+    # This contains spatial blending for PPN radar forecast, where first value in data is the 1h forecast, not analysis!
+    # Instant precipitation rate and 1h precip accumulation
     if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter in ['precipitation_1h_bg', 'rainrate_15min_bg']:
         weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
@@ -286,7 +289,7 @@ def main():
         mask_nodatax1 = mask_nodatax2
         timestampx1 = timestampx2
 
-    # If both extrapolated_data and dynamic_nwc_data are read in and the parameter is NOT precipitation or rainrate (currently only used for cloudcast data)
+    # Blending dynamic_nwc data with extrapolated_data when the parameter is NOT precipitation or rainrate (currently only used for cloudcast data)
     if 'image_arrayx1' in locals() and 'image_arrayx2' in locals() and options.parameter != 'precipitation_1h_bg' and options.parameter != 'rainrate_15min_bg':
         weights_obs_extrap = np.zeros(image_arrayx2.shape)
         if type(timestampx1)==list and type(timestampx2)==list:
@@ -350,8 +353,13 @@ def main():
         else:
             raise ValueError("no obsdata or nwc data available! Cannot smooth anything!")
     
-    # The spatially combined, smoothed precip field is stored, if no model data is available
-    interpolated_advection = image_array1
+    # IF NO MODEL DATA IS AVAILABLE 
+    # For precipitation the spatially combined, smoothed precip field is stored. 
+    # For other parameter the nwp nowcast and extrapolated data is the final product
+    if options.parameter in ['precipitation_1h_bg', 'rainrate_15min_bg']:
+        interpolated_advection = image_array1
+    elif 'image_arrayx1' in locals() and options.parameter != 'precipitation_1h_bg' and options.parameter != 'rainrate_15min_bg':
+        interpolated_advection = image_arrayx1
 
     # Do the rest if the model_data IS included
     if options.model_data!=None:

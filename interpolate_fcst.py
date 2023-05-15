@@ -364,8 +364,8 @@ def model_smoothing(obsfields, modelfields, mask_nodata, farneback_params, secon
       R_interp[(int(((tws==tw).nonzero())[0])+1),:,:] = (R_interp_cur)
 
   # Masking in the previous step does not take into account that missing values can actually spread and dilute to actual field. Therefore appylying a simple check to remove spurious values from fields, based on absolute maximum/minimum values in either field.
-  R_interp[R_interp>(R_max*1.02)] = missingval
-  R_interp[R_interp<(R_min*0.98)] = missingval
+  R_interp[R_interp>(R_max*1.02)] = modelfields[R_interp>(R_max*1.02)] # missingval
+  R_interp[R_interp<(R_min*0.98)] = modelfields[R_interp<(R_min*0.98)] # missingval
 
   return R_interp
 

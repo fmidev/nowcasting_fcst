@@ -221,9 +221,9 @@ def advection(obsfields, modelfields, mask_nodata, farneback_params, predictabil
   # Here changing to float to ubyte type, for AMV calculation. ubyte is an 8-bit unsigned integral data type (http://x10.sourceforge.net/x10doc/2.3.0/x10/lang/UByte.html), the 8-bit conversion of the data is necessary for the function cv2.calcOpticalFlowFarneback. Also smearing out image as defined by https://docs.scipy.org/doc/scipy/reference/generated/scipy.ndimage.gaussian_filter.html
   R1_f = _filtered_ubyte_image(R1, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=logtrans)
   R2_f = _filtered_ubyte_image(R2, mask_nodata, R_min, R_max, filter_stddev=1.0, logtrans=logtrans)
-  
-  VF = optical_flow(R1_f, R2_f, *farneback_params)
-  VB = optical_flow(R2_f, R1_f, *farneback_params)
+
+  VF = optical_flow(R1_f, R2_f, farneback_params)
+  VB = optical_flow(R2_f, R1_f, farneback_params)
     
   # For actual interpolation, original vectors V1 and V2 are used!
   for tw in tws:

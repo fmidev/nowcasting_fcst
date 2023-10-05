@@ -11,6 +11,28 @@ import fsspec
 GRIB_MESSAGE_TEMPLATE = None
 GRIB_MESSAGE_STEP = None
 
+def fsspec_s3():
+    s3info = {}
+    s3info['client_kwargs'] = {}
+
+    try:
+        ep = os.environ["S3_HOSTNAME"]
+        if not ep.startswith("http"):
+            ep = 'https://' + ep
+        s3info['client_kwargs']['endpoint_url'] = ep
+    except:
+        s3info['client_kwargs']['endpoint_url'] = 'https://lake.fmi.fi'
+
+    try:
+        s3info['key'] = os.environ['S3_ACCESS_KEY_ID']
+        s3info['secret'] = os.environ['S3_SECRET_ACCESS_KEY']
+        s3info['anon'] = False
+    except:
+        s3info['anon'] = True
+
+    return s3info
+
+
 def read(image_file,added_hours=0,read_coordinates=False,use_as_template=False):
     if image_file.endswith(".nc"):
         print(f"Reading {image_file}")
@@ -113,9 +135,12 @@ def read_nc(image_nc_file,added_hours):
 
 def read_file_from_s3(grib_file):
     uri = "simplecache::{}".format(grib_file)
-
-    return fsspec.open_local(uri, s3={'anon': True, 'client_kwargs': { 'endpoint_url':'https://lake.fmi.fi'}})
-
+    s3info = fsspec_s3()
+    try:
+        return fsspec.open_local(uri, s3=s3info)
+    except Exception as e:
+        print("ERROR reading file={} from={} anon={}".format(grib_file, s3info['client_kwargs']['endpoint_url'], s3info['anon']))
+        raise e
 
 def read_grib(grib_file,added_hours,read_coordinates,use_as_template=False):
     global GRIB_MESSAGE_TEMPLATE
@@ -354,11 +379,18 @@ def write_grib(interpolated_data,write_grib_file,t_diff,write_options):
 
     fpout = None
     if write_grib_file.startswith("s3://"):
-        openfile = fsspec.open('simplecache::{}'.format(write_grib_file),
+        try:
+            s3info = fsspec_s3()
+            openfile = fsspec.open('simplecache::{}'.format(write_grib_file),
                             'wb',
-                            s3={'anon':False, 'key':os.environ['S3_ACCESS_KEY_ID'], 'secret':os.environ['S3_SECRET_ACCESS_KEY'],'client_kwargs':{'endpoint_url':'https://lake.fmi.fi'}})
-        with openfile as fpout:
-            write_grib_message(fpout,interpolated_data,t_diff,write_options)
+                            s3=s3info)
+            with openfile as fpout:
+                write_grib_message(fpout,interpolated_data,t_diff,write_options)
+
+        except Exception as e:
+            print("ERROR writing file={} to={} anon={}".format(write_grib_file, s3info['client_kwargs']['endpoint_url'], s3info['anon']))
+            raise e
+
     else:
         with open(str(write_grib_file), "wb") as fpout:
              write_grib_message(fpout,interpolated_data,t_diff,write_options)

@@ -508,9 +508,4 @@ def write_nc(
     w_nc_fid.history = "Created " + time.ctime(time.time())
     for attribute in nc_attrs:
         w_nc_fid.setncattr(attribute, nc_fid.getncattr(attribute))
-        # w_nc_fid[attribute] = nc_fid.getncattr(attribute)
-    # for attribute in nc_attrs:
-    #     eval_string = 'w_nc_fid.' + attribute + ' = nc_fid.getncattr("' + attribute + '")'
-    #     eval(eval_string)
-    # Close the file
     w_nc_fid.close()

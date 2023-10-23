@@ -258,7 +258,6 @@ def read_grib(grib_file, added_hours, read_coordinates, use_as_template=False):
         dtime = dtime + datetime.timedelta(hours=added_hours)
 
     print("Read {} in {:.2f} seconds".format(grib_file, time.time() - start))
-    #    return temps, temps_min, temps_max, dtime, mask_nodata, nodata, longitudes, latitudes
     return temps, None, None, dtime, mask_nodata, nodata, longitudes, latitudes
 
 

@@ -7,9 +7,27 @@ import datetime
 import numpy as np
 import os
 import fsspec
+from scipy.ndimage import gaussian_filter, distance_transform_edt
 
 GRIB_MESSAGE_TEMPLATE = None
 GRIB_MESSAGE_STEP = None
+
+
+def read_input(options, input_data, use_as_template):
+    # For accumulated model precipitation, add one hour to timestamp as it is read in as the beginning of the 1-hour period and not as the end of it
+    if options.parameter == "precipitation_1h_bg":
+        added_hours = 1
+    else:
+        added_hours = 0
+    (image_array, quantity_min, quantity_max, timestamp, mask_nodata, nodata, longitudes, latitudes) = read(input_data, added_hours, use_as_template=use_as_template)
+    quantity = options.parameter
+    # nodata values are always taken from the model field. Presumably these are the same.
+    #nodata = nodata2
+    if np.sum((image_array != nodata) & (image_array != None)) == 0:
+        raise ValueError("Datafile contains only missing data!")
+        del (image_array, quantity_min, quantity_max, timestamp, mask_nodata, nodata, longitudes, latitudes)
+        exit()
+    return image_array, quantity_min, quantity_max, timestamp, mask_nodata, nodata, longitudes, latitudes, quantity
 
 
 def fsspec_s3():
@@ -45,6 +63,45 @@ def read(image_file, added_hours=0, read_coordinates=False, use_as_template=Fals
         return read_HDF5(image_file, added_hours)
     else:
         sys.exit("unsupported file type for file: %s" % (image_file))
+
+def read_background_data_and_make_mask(image_file=None, input_mask=None, mask_smaller_than_borders=4, smoother_coefficient=0.2, gaussian_filter_coefficient=3):
+    # mask_smaller_than_borders controls how many pixels the initial mask is compared to obs field
+    # smoother_coefficient controls how long from the borderline bg field is affecting
+    # gaussian_filter_coefficient sets the smoothiness of the weight field
+    # Read in detectability data field and change all not-nodata values to zero
+    if image_file is not None:
+        (
+            image_array4,
+            quantity4_min,
+            quantity4_max,
+            timestamp4,
+            mask_nodata4,
+            nodata4,
+        ) = read(image_file)
+        image_array4[np.where(~np.ma.getmask(mask_nodata4))] = 0
+        mask_nodata4_p = np.sum(np.ma.getmask(mask_nodata4), axis=0) > 0
+    else:
+        mask_nodata4_p = input_mask
+    # Creating a linear smoother field: More weight for bg near the bg/obs border and less at the center of obs field
+    # Gaussian smoother widens the coefficients so initially calculate from smaller mask the values
+    used_mask = distance_transform_edt(
+        np.logical_not(mask_nodata4_p)
+    ) - distance_transform_edt(mask_nodata4_p)
+    # Allow used mask to be bigger or smaller than initial mask given
+    used_mask2 = np.where(used_mask <= mask_smaller_than_borders, True, False)
+    # Combine with boolean input mask if that is given
+    if input_mask is not None:
+        used_mask2 = np.logical_or(used_mask2, input_mask)
+    used_mask = distance_transform_edt(np.logical_not(used_mask2))
+    weights_obs = gaussian_filter(used_mask, gaussian_filter_coefficient)
+    weights_obs = weights_obs / (smoother_coefficient * np.max(weights_obs))
+    # Cropping values to between 0 and 1
+    weights_obs = np.where(weights_obs > 1, 1, weights_obs)
+    # Leaving only non-zero -values which are inside used_mask2
+    weights_obs = np.where(np.logical_not(used_mask2), weights_obs, 0)
+    weights_bg = 1 - weights_obs
+
+    return weights_bg
 
 
 def ncdump(nc_fid, verb=True):

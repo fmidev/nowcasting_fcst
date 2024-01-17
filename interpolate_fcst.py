@@ -53,7 +53,6 @@ def optical_flow(R1_f, R2_f, farneback_params):
     else:
         return cv2.calcOpticalFlowFarneback(R1_f, R2_f, None, *farneback_params)
 
-
 def linear(
     obsfields,
     modelfields,

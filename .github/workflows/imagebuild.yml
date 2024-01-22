@@ -5,10 +5,20 @@ on: # yamllint disable-line rule:truthy
 name: Create container image
 
 jobs:
-  call-image-build-workflow:
+  call-image-build-workflow-for-standard-image:
     uses: fmidev/github-actions-workflows/.github/workflows/imagebuild-workflow.yaml@main
     with:
       image_name: nowcasting_fcst
+      image_test_command: python3 /nowcasting_fcst/call_interpolation.py --help
+    secrets:
+      QUAY_USER: ${{ secrets.QUAY_USER }}
+      QUAY_TOKEN: ${{ secrets.QUAY_TOKEN }}
+  call-image-build-workflow-for-cuda-image:
+    uses: fmidev/github-actions-workflows/.github/workflows/imagebuild-workflow.yaml@main
+    with:
+      image_name: nowcasting_fcst
+      image_tag: latest-cuda
+      image_containerfile: Containerfile.cuda
       image_test_command: python3 /nowcasting_fcst/call_interpolation.py --help
     secrets:
       QUAY_USER: ${{ secrets.QUAY_USER }}

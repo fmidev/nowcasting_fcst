@@ -449,8 +449,6 @@ def write_grib_message(
         lt = start_lt + step * i - t_diff
 
         if pdtn == 8:
-            lt -= base_lt
-
             tr = codes_get_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitForTimeRange")
             trlen = codes_get_long(GRIB_MESSAGE_TEMPLATE, "lengthOfTimeRange")
 

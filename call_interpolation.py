@@ -50,7 +50,7 @@ def main():
     # Model data = the final NWP data for which the nowcast data is blended, i.e the 10d forecast. This is not obligatory for all use cases!
     # If parameter is precipitation 1h/instant, total cloud cover, probability of thunder (and there is dynamic_nwc_data) no need of model_data.
     if options.model_data != None: 
-        (image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2, quantity2) = read_input(options, options.model_data, use_as_template=True)
+        (image_array2, quantity2_min, quantity2_max, timestamp2, mask_nodata2, nodata2, longitudes2, latitudes2, quantity2) = read_input(options, options.model_data, use_as_template=(options.dynamic_nwc_data is None))
         nodata = nodata2
 
     # Read in observation data for precipitation (Time stamp is analysis time!)
@@ -414,6 +414,7 @@ def main():
         predictability=options.predictability,
         t_diff=options.time_offset,
         grib_write_options=options.grib_write_options,
+        seconds_between_steps=options.seconds_between_steps,
     )
 
     """ PLOT OUT DIAGNOSTICS FROM THE DATA """
@@ -449,7 +450,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--time_offset",
-        help="Input/output grib metadata dataTime offset (positive values)",
+        default=3600,
+        type=int,
+        help="Adjust analysis time in output grib files by this amount of seconds. Leadtimes are adjusted to match the same wall clock time",
     )
     parser.add_argument(
         "--detectability_data",

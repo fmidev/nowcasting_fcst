@@ -10,7 +10,6 @@ import fsspec
 from scipy.ndimage import gaussian_filter, distance_transform_edt
 
 GRIB_MESSAGE_TEMPLATE = None
-GRIB_MESSAGE_STEP = None
 
 
 def read_input(options, input_data, use_as_template):
@@ -19,7 +18,16 @@ def read_input(options, input_data, use_as_template):
         added_hours = 1
     else:
         added_hours = 0
-    (image_array, quantity_min, quantity_max, timestamp, mask_nodata, nodata, longitudes, latitudes) = read(input_data, added_hours, use_as_template=use_as_template)
+    (
+        image_array,
+        quantity_min,
+        quantity_max,
+        timestamp,
+        mask_nodata,
+        nodata,
+        longitudes,
+        latitudes,
+    ) = read(input_data, added_hours, use_as_template=use_as_template)
     quantity = options.parameter
     # nodata values are always taken from the model field. Presumably these are the same.
     #nodata = nodata2
@@ -211,7 +219,6 @@ def read_file_from_s3(grib_file):
 
 def read_grib(grib_file, added_hours, read_coordinates, use_as_template=False):
     global GRIB_MESSAGE_TEMPLATE
-    global GRIB_MESSAGE_STEP
 
     start = time.time()
 
@@ -273,9 +280,6 @@ def read_grib(grib_file, added_hours, read_coordinates, use_as_template=False):
             if use_as_template:
                 if GRIB_MESSAGE_TEMPLATE is None:
                     GRIB_MESSAGE_TEMPLATE = codes_clone(gh)
-
-                if GRIB_MESSAGE_STEP is None and lt > datetime.timedelta(minutes=0):
-                    GRIB_MESSAGE_STEP = lt
 
             if codes_get_long(gh, "numberOfMissing") == ni * nj:
                 print(
@@ -379,35 +383,40 @@ def write(
     predictability,
     t_diff,
     grib_write_options,
+    seconds_between_steps,
 ):
     if write_file.endswith(".nc"):
         write_nc(
             interpolated_data, image_file, write_file, variable, predictability, t_diff
         )
     elif write_file.endswith(".grib2"):
-        write_grib(interpolated_data, write_file, t_diff, grib_write_options)
+        write_grib(
+            interpolated_data,
+            write_file,
+            t_diff,
+            grib_write_options,
+            seconds_between_steps,
+        )
     else:
         print("write: unsupported file type for file: %s" % (image_file))
         return
     print("wrote file '%s'" % write_file)
 
 
-def write_grib_message(fpout, interpolated_data, t_diff, write_options):
+def write_grib_message(
+    fpout, interpolated_data, t_diff, write_options, seconds_between_steps
+):
     global GRIB_MESSAGE_TEMPLATE
-    global GRIB_MESSAGE_STEP
     assert GRIB_MESSAGE_TEMPLATE is not None
 
-    # For 1km PPN+MNWC forecast adjust the output grib dataTime (analysis time) since the 1h leadtime is used instead of 0h. Metadata taken from MNWC
-    if t_diff == None:
-        t_diff = 0
-    t_diff = int(t_diff)
+    t_diff = datetime.timedelta(seconds=t_diff)
 
     dataDate = int(codes_get_long(GRIB_MESSAGE_TEMPLATE, "dataDate"))
     dataTime = int(codes_get_long(GRIB_MESSAGE_TEMPLATE, "dataTime"))
     analysistime = datetime.datetime.strptime(
         "{}{:04d}".format(dataDate, dataTime), "%Y%m%d%H%M"
     )
-    analysistime = analysistime + datetime.timedelta(hours=t_diff)
+    analysistime = analysistime + t_diff
     codes_set_long(
         GRIB_MESSAGE_TEMPLATE, "dataDate", int(analysistime.strftime("%Y%m%d"))
     )
@@ -419,23 +428,25 @@ def write_grib_message(fpout, interpolated_data, t_diff, write_options):
     codes_set_long(GRIB_MESSAGE_TEMPLATE, "centre", 86)
     codes_set_long(GRIB_MESSAGE_TEMPLATE, "bitmapPresent", 1)
 
-    base_lt = datetime.timedelta(hours=1)
-
-    is_minutes = True if GRIB_MESSAGE_STEP == datetime.timedelta(minutes=15) else False
-
+    is_minutes = seconds_between_steps < 3600
     if is_minutes:
         codes_set_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitOfTimeRange", 0)  # minute
-        base_lt = datetime.timedelta(minutes=15)
 
     pdtn = codes_get_long(GRIB_MESSAGE_TEMPLATE, "productDefinitionTemplateNumber")
+
+    step = datetime.timedelta(seconds=seconds_between_steps)
 
     if write_options is not None:
         for opt in write_options.split(","):
             k, v = opt.split("=")
             codes_set_long(GRIB_MESSAGE_TEMPLATE, k, int(v))
 
+    start_lt = datetime.timedelta(
+        hours=codes_get_long(GRIB_MESSAGE_TEMPLATE, "forecastTime")
+    )
+
     for i in range(interpolated_data.shape[0]):
-        lt = base_lt * i
+        lt = start_lt + step * i - t_diff
 
         if pdtn == 8:
             lt -= base_lt
@@ -496,7 +507,9 @@ def write_grib_message(fpout, interpolated_data, t_diff, write_options):
     fpout.close()
 
 
-def write_grib(interpolated_data, write_grib_file, t_diff, write_options):
+def write_grib(
+    interpolated_data, write_grib_file, t_diff, write_options, seconds_between_steps
+):
     # (Almost) all the metadata is copied from modeldata.grib2
     try:
         os.remove(write_grib_file)
@@ -511,7 +524,13 @@ def write_grib(interpolated_data, write_grib_file, t_diff, write_options):
                 "simplecache::{}".format(write_grib_file), "wb", s3=s3info
             )
             with openfile as fpout:
-                write_grib_message(fpout, interpolated_data, t_diff, write_options)
+                write_grib_message(
+                    fpout,
+                    interpolated_data,
+                    t_diff,
+                    write_options,
+                    seconds_between_steps,
+                )
 
         except Exception as e:
             print(
@@ -525,7 +544,9 @@ def write_grib(interpolated_data, write_grib_file, t_diff, write_options):
 
     else:
         with open(str(write_grib_file), "wb") as fpout:
-            write_grib_message(fpout, interpolated_data, t_diff, write_options)
+            write_grib_message(
+                fpout, interpolated_data, t_diff, write_options, seconds_between_steps
+            )
 
 
 def write_nc(

@@ -5,4 +5,5 @@ configparser>=3.7.1
 eccodes
 fsspec
 s3fs
+numpy<2.0
 opencv-python==4.9.0.80

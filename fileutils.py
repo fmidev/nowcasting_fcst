@@ -429,6 +429,16 @@ def write_grib_message(
     codes_set_long(GRIB_MESSAGE_TEMPLATE, "bitmapPresent", 1)
 
     is_minutes = seconds_between_steps < 3600
+
+    # changes with newer eccodes: a new key "indicatorOfUnitForForecastTime" is added
+    ioufft = codes_get_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitForForecastTime")
+
+    if ioufft == 0:
+        # forecast time is set in minutes; change it to hours
+        ft = int(codes_get_long(GRIB_MESSAGE_TEMPLATE, "forecastTime")) / 60
+        codes_set_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitForForecastTime", 1)
+        codes_set_long(GRIB_MESSAGE_TEMPLATE, "forecastTime", ft)
+
     if is_minutes:
         codes_set_long(GRIB_MESSAGE_TEMPLATE, "indicatorOfUnitOfTimeRange", 0)  # minute
 
@@ -453,9 +463,11 @@ def write_grib_message(
             trlen = codes_get_long(GRIB_MESSAGE_TEMPLATE, "lengthOfTimeRange")
 
             assert (tr == 1 and trlen == 1) or (tr == 0 and trlen == 60)
-            lt_end = analysistime + datetime.timedelta(
-                hours=codes_get_long(GRIB_MESSAGE_TEMPLATE, "lengthOfTimeRange")
-            )
+
+            if tr == 0:
+                lt_end = analysistime + datetime.timedelta(minutes=trlen)
+            elif tr == 1:
+                lt_end = analysistime + datetime.timedelta(hours=trlen)
 
             # these are not mandatory but some software uses them
             codes_set_long(
